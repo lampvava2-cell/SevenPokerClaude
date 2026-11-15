@@ -1,0 +1,282 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>쓰리쿠션 연습장</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=Barlow+Condensed:wght@500;700&display=swap">
+<style>
+/* Layout: one-screen app. Landscape = table left + control rail right; portrait = table rotated vertical + controls below. Single committed "billiard lounge" look. */
+:root{
+  --bg:#141a22; --panel:#1d2530; --line:#2e3a4a; --fg:#e9eef4; --muted:#93a1b3;
+  --brass:#d6a54a; --cloth:#1d5aa6; --good:#4cc38a; --bad:#e2675b;
+  --f-body:"IBM Plex Sans KR",system-ui,sans-serif; --f-num:"Barlow Condensed","IBM Plex Sans KR",sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);overflow:hidden;
+  padding-left:max(0px,env(safe-area-inset-left,0px));padding-right:max(0px,env(safe-area-inset-right,0px));}
+#app{height:100%;display:grid;grid-template-columns:1fr 188px;}
+#tableWrap{position:relative;min-width:0;min-height:0}
+#table{position:absolute;inset:0;width:100%;height:100%;touch-action:none;display:block}
+#panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:8px;
+  padding:8px 10px;overflow-y:auto;min-height:0}
+@media (orientation:portrait){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #panel{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:auto 1fr;
+    grid-template-areas:"status status" "spin power" "spin aim" "btns btns";align-items:center;
+    padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));}
+  #status{grid-area:status} #spinBox{grid-area:spin} #powerBox{grid-area:power} #aimBox{grid-area:aim} #btns{grid-area:btns}
+}
+.lbl{font-size:11px;letter-spacing:.06em;color:var(--muted)}
+#status{display:flex;flex-direction:column;gap:4px}
+.row{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.chip{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:13px}
+.dot{width:14px;height:14px;border-radius:50%;box-shadow:inset -2px -2px 3px rgba(0,0,0,.35)}
+.num{font-family:var(--f-num);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums;color:var(--brass)}
+#msg{font-size:12px;min-height:1.4em;color:var(--muted)}
+#msg.good{color:var(--good)} #msg.bad{color:var(--bad)}
+#spinBox{display:flex;align-items:center;gap:8px}
+#spin{width:84px;height:84px;touch-action:none;border-radius:50%}
+#spinInfo{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted)}
+#power{position:relative;height:30px;border-radius:6px;background:#0f141b;border:1px solid var(--line);touch-action:none;overflow:hidden}
+#powerFill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#3d6b4f,var(--brass) 60%,var(--bad));}
+#powerTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--f-num);font-weight:700;font-size:16px;text-shadow:0 1px 2px #000}
+#aimBox .btnrow{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+button{font:inherit;color:var(--fg);background:#2a3442;border:1px solid var(--line);border-radius:6px;padding:6px 0;font-size:13px;touch-action:manipulation}
+button:active{background:#36435a}
+button:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+#btns{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+#shoot{grid-column:1/-1;background:var(--brass);color:#1b1408;font-weight:700;font-size:16px;padding:10px 0;border:0}
+#shoot:disabled{opacity:.45}
+@media (orientation:portrait){#btns{grid-template-columns:2fr 1fr 1fr 1fr}#shoot{grid-column:auto}}
+</style>
+</head><body style="margin:0">
+<div id="app">
+  <div id="tableWrap"><canvas id="table" aria-label="당구대. 드래그해서 조준"></canvas></div>
+  <aside id="panel">
+    <div id="status">
+      <div class="row"><span class="lbl">내 공</span><span class="chip" id="cueChip"><span class="dot" id="cueDot"></span><span id="cueName">흰 공</span></span></div>
+      <div class="row"><span class="lbl">득점 / 샷</span><span><span class="num" id="score">0</span> <span class="lbl" id="shots">/ 0</span></span></div>
+      <div id="msg">당구대를 드래그해서 조준하세요</div>
+    </div>
+    <div id="spinBox">
+      <canvas id="spin" width="168" height="168" aria-label="당점(회전) 선택"></canvas>
+      <div id="spinInfo"><span class="lbl">당점</span><span id="spinTxt">중앙</span><button id="spinReset" type="button">중앙으로</button></div>
+    </div>
+    <div id="powerBox"><div class="lbl" style="margin-bottom:4px">힘</div>
+      <div id="power" role="slider" aria-label="힘" tabindex="0"><div id="powerFill"></div><div id="powerTxt">40%</div></div></div>
+    <div id="aimBox"><div class="row"><span class="lbl">미세 조준</span><span class="lbl" id="angTxt">0.0°</span></div>
+      <div class="btnrow"><button type="button" data-d="-1">◀◀</button><button type="button" data-d="-0.1">◀</button><button type="button" data-d="0.1">▶</button><button type="button" data-d="1">▶▶</button></div></div>
+    <div id="btns">
+      <button id="shoot" type="button">샷</button>
+      <button id="undo" type="button">되돌리기</button>
+      <button id="guide" type="button" aria-pressed="true">가이드</button>
+      <button id="speed" type="button">1x</button>
+    </div>
+  </aside>
+</div>
+<script>
+// PHYSICS-START
+const R=0.03075, L=2.84, W=1.42;
+const G=9.81, MU_S=0.2, MU_R=0.011, SPIN_DEC=10, E_BALL=0.94, E_RAIL=0.8, MU_RAIL=0.22, RAIL_ROLL_KEEP=0.35;
+const DT=1/1000;
+function makeBalls(){return [
+  {id:'w',x:0.71,y:0.71+0.1524,vx:0,vy:0,wx:0,wy:0,wz:0},
+  {id:'y',x:0.71,y:0.71,vx:0,vy:0,wx:0,wy:0,wz:0},
+  {id:'r',x:2.13,y:0.71,vx:0,vy:0,wx:0,wy:0,wz:0}];}
+// a: side offset (-1..1, + = right english), b: vertical offset (-1..1, + = top). offsets scaled to 0.5R
+function strike(b,ang,V,a,bv){
+  const dx=Math.cos(ang), dy=Math.sin(ang);
+  b.vx=V*dx; b.vy=V*dy;
+  const tb=0.5*bv, ta=0.5*a; // fraction of R
+  const k=2.5*tb*V/R;
+  b.wx=k*(-dy); b.wy=k*dx;
+  b.wz=-2.5*ta*V/R;
+}
+function railHit(b,nx,ny){
+  const vn=b.vx*nx+b.vy*ny; if(vn>=0) return false;
+  const tx=-ny, ty=nx; let vt=b.vx*tx+b.vy*ty;
+  const e=E_RAIL-Math.min(0.18,0.035*(-vn));
+  const vn2=-e*vn;
+  const s=vt-R*b.wz;
+  let dvt=-(2/7)*s; const lim=MU_RAIL*(1+e)*(-vn);
+  if(dvt>lim)dvt=lim; if(dvt<-lim)dvt=-lim;
+  vt+=dvt; b.wz+=-2.5*dvt/R;
+  let rvx=b.wy*R, rvy=-b.wx*R;
+  let rvn=rvx*nx+rvy*ny; const rvt=rvx*tx+rvy*ty; rvn*=RAIL_ROLL_KEEP;
+  rvx=rvn*nx+rvt*tx; rvy=rvn*ny+rvt*ty; b.wy=rvx/R; b.wx=-rvy/R;
+  b.vx=vn2*nx+vt*tx; b.vy=vn2*ny+vt*ty;
+  return true;
+}
+function friction(b,dt){
+  const cvx=b.vx-R*b.wy, cvy=b.vy+R*b.wx, sl=Math.hypot(cvx,cvy);
+  if(sl>3.5*MU_S*G*dt){
+    const fx=-MU_S*G*cvx/sl, fy=-MU_S*G*cvy/sl;
+    b.vx+=fx*dt; b.vy+=fy*dt;
+    b.wx+=2.5/R*fy*dt; b.wy+=-2.5/R*fx*dt;
+  } else {
+    b.vx-=(2/7)*cvx; b.vy-=(2/7)*cvy;
+    const sp=Math.hypot(b.vx,b.vy), dec=MU_R*G*dt;
+    if(sp<=dec){b.vx=0;b.vy=0;} else {b.vx*=(sp-dec)/sp; b.vy*=(sp-dec)/sp;}
+    b.wx=-b.vy/R; b.wy=b.vx/R;
+  }
+  const d=SPIN_DEC*dt; if(Math.abs(b.wz)<=d) b.wz=0; else b.wz-=Math.sign(b.wz)*d;
+}
+// returns true if anything still moving. ev(type, i, j)
+function step(balls,dt,ev){
+  for(const b of balls){b.x+=b.vx*dt; b.y+=b.vy*dt;}
+  for(let i=0;i<3;i++)for(let j=i+1;j<3;j++){
+    const p=balls[i],q=balls[j]; let dx=q.x-p.x, dy=q.y-p.y; const d2=dx*dx+dy*dy;
+    if(d2<4*R*R){const d=Math.sqrt(d2)||1e-9; const nx=dx/d, ny=dy/d;
+      const rel=(p.vx-q.vx)*nx+(p.vy-q.vy)*ny;
+      if(rel>0){const jj=(1+E_BALL)/2*rel; p.vx-=jj*nx;p.vy-=jj*ny;q.vx+=jj*nx;q.vy+=jj*ny; ev&&ev('ball',i,j);}
+      const ov=(2*R-d)/2; p.x-=ov*nx;p.y-=ov*ny;q.x+=ov*nx;q.y+=ov*ny;}
+  }
+  balls.forEach((b,i)=>{
+    if(b.x<R){b.x=R; if(railHit(b,1,0))ev&&ev('rail',i,0);}
+    if(b.x>L-R){b.x=L-R; if(railHit(b,-1,0))ev&&ev('rail',i,1);}
+    if(b.y<R){b.y=R; if(railHit(b,0,1))ev&&ev('rail',i,2);}
+    if(b.y>W-R){b.y=W-R; if(railHit(b,0,-1))ev&&ev('rail',i,3);}
+  });
+  let moving=false;
+  for(const b of balls){friction(b,dt);
+    if(Math.hypot(b.vx,b.vy)<0.002 && R*Math.hypot(b.wx,b.wy)<0.004 && Math.abs(b.wz)<0.5){b.vx=b.vy=b.wx=b.wy=0;b.wz=0;} else moving=true;}
+  return moving;
+}
+// PHYSICS-END
+const T=0.115, CUSH=0.045;
+const COLORS={w:['#ffffff','#c9ccd1'],y:['#ffe066','#d29a12'],r:['#ff5a4d','#a51d16']};
+const NAMES={w:'흰 공',y:'노란 공'};
+let st={balls:makeBalls(),cue:0,ang:0,power:0.4,sa:0,sb:0,score:0,shots:0,guide:true,speed:1};
+let moving=false, history=[], trail=[], shotEv=null, acc=0, last=0;
+const cv=document.getElementById('table'), ctx=cv.getContext('2d');
+let M=null, dpr=1, rot=false;
+
+function aimAtObject(){ // default aim toward yellow/white other ball
+  const c=st.balls[st.cue], o=st.balls[2]; st.ang=Math.atan2(o.y-c.y,o.x-c.x);}
+
+function resize(){dpr=window.devicePixelRatio||1; const w=cv.clientWidth,h=cv.clientHeight;
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr); rot=h>w*1.05;
+  const tw=(rot?W:L)+2*T, th=(rot?L:W)+2*T, pad=10; const s=Math.min((w-pad*2)/tw,(h-pad*2)/th);
+  const ox=(w-tw*s)/2, oy=(h-th*s)/2;
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.translate(ox,oy); ctx.scale(s,s);
+  if(rot){ctx.translate(W+2*T,0); ctx.rotate(Math.PI/2);} ctx.translate(T,T);
+  M=ctx.getTransform(); draw();}
+new ResizeObserver(resize).observe(cv);
+
+function toWorld(e){const r=cv.getBoundingClientRect(); const p=new DOMPoint((e.clientX-r.left)*dpr,(e.clientY-r.top)*dpr).matrixTransform(M.inverse()); return p;}
+let aiming=false;
+cv.addEventListener('pointerdown',e=>{if(moving)return; aiming=true; cv.setPointerCapture(e.pointerId); aimTo(e);});
+cv.addEventListener('pointermove',e=>{if(aiming)aimTo(e);});
+cv.addEventListener('pointerup',()=>aiming=false); cv.addEventListener('pointercancel',()=>aiming=false);
+function aimTo(e){const p=toWorld(e), c=st.balls[st.cue]; if(Math.hypot(p.x-c.x,p.y-c.y)<0.02)return; st.ang=Math.atan2(p.y-c.y,p.x-c.x); ui(); draw();}
+
+// fine aim with hold-repeat
+document.querySelectorAll('#aimBox button').forEach(b=>{let t1,t2;
+  const go=()=>{st.ang+=parseFloat(b.dataset.d)*Math.PI/180; ui(); draw();};
+  b.addEventListener('pointerdown',e=>{e.preventDefault(); if(moving)return; go(); t1=setTimeout(()=>{t2=setInterval(go,60)},350);});
+  const stop=()=>{clearTimeout(t1);clearInterval(t2)}; b.addEventListener('pointerup',stop); b.addEventListener('pointerleave',stop); b.addEventListener('pointercancel',stop);});
+
+// spin pad
+const sc=document.getElementById('spin'), sx=sc.getContext('2d');
+function drawSpin(){const s=168,c=s/2,r=74; sx.clearRect(0,0,s,s);
+  const g=sx.createRadialGradient(c-20,c-24,6,c,c,r); g.addColorStop(0,'#fff'); g.addColorStop(1,'#b8bec7');
+  sx.fillStyle=g; sx.beginPath(); sx.arc(c,c,r,0,7); sx.fill();
+  sx.strokeStyle='rgba(20,30,45,.35)'; sx.lineWidth=1.5; sx.beginPath(); sx.moveTo(c-r,c); sx.lineTo(c+r,c); sx.moveTo(c,c-r); sx.lineTo(c,c+r); sx.stroke();
+  sx.setLineDash([4,4]); sx.beginPath(); sx.arc(c,c,r*0.5,0,7); sx.stroke(); sx.setLineDash([]);
+  const px=c+st.sa*r*0.9, py=c-st.sb*r*0.9; sx.fillStyle='#c2362b'; sx.beginPath(); sx.arc(px,py,11,0,7); sx.fill();
+  sx.strokeStyle='#fff'; sx.lineWidth=2; sx.stroke();}
+function spinTo(e){const r=sc.getBoundingClientRect(); let a=((e.clientX-r.left)/r.width*2-1)/0.9, b=-((e.clientY-r.top)/r.height*2-1)/0.9;
+  const m=Math.hypot(a,b); if(m>1){a/=m;b/=m;} st.sa=Math.abs(a)<0.06?0:a; st.sb=Math.abs(b)<0.06?0:b; drawSpin(); ui();}
+let spinning=false;
+sc.addEventListener('pointerdown',e=>{spinning=true; sc.setPointerCapture(e.pointerId); spinTo(e);});
+sc.addEventListener('pointermove',e=>{if(spinning)spinTo(e);}); sc.addEventListener('pointerup',()=>spinning=false);
+document.getElementById('spinReset').onclick=()=>{st.sa=st.sb=0; drawSpin(); ui();};
+
+// power
+const pw=document.getElementById('power'); let pdrag=false;
+function powTo(e){const r=pw.getBoundingClientRect(); st.power=Math.min(1,Math.max(0.02,(e.clientX-r.left)/r.width)); ui(); draw();}
+pw.addEventListener('pointerdown',e=>{pdrag=true; pw.setPointerCapture(e.pointerId); powTo(e);});
+pw.addEventListener('pointermove',e=>{if(pdrag)powTo(e);}); pw.addEventListener('pointerup',()=>pdrag=false);
+pw.addEventListener('keydown',e=>{if(e.key==='ArrowRight')st.power=Math.min(1,st.power+0.01); if(e.key==='ArrowLeft')st.power=Math.max(0.02,st.power-0.01); ui(); draw();});
+const speedOf=p=>0.25+4.75*p*p;
+
+document.getElementById('guide').onclick=e=>{st.guide=!st.guide; e.currentTarget.setAttribute('aria-pressed',st.guide); draw();};
+document.getElementById('speed').onclick=e=>{st.speed=st.speed===1?2:st.speed===2?4:1; e.currentTarget.textContent=st.speed+'x';};
+document.getElementById('undo').onclick=()=>{if(moving||!history.length)return; st=JSON.parse(history.pop()); trail=[]; setMsg('한 샷 되돌렸습니다'); syncButtons(); ui(); drawSpin(); draw();};
+document.getElementById('shoot').onclick=shoot;
+
+function setMsg(t,cls){const m=document.getElementById('msg'); m.textContent=t; m.className=cls||'';}
+function ui(){const id=st.balls[st.cue].id; document.getElementById('cueName').textContent=NAMES[id];
+  document.getElementById('cueDot').style.background=COLORS[id][0];
+  document.getElementById('score').textContent=st.score; document.getElementById('shots').textContent='/ '+st.shots;
+  document.getElementById('powerFill').style.width=(st.power*100)+'%';
+  document.getElementById('powerTxt').textContent=Math.round(st.power*100)+'%  ·  '+speedOf(st.power).toFixed(1)+' m/s';
+  let deg=((st.ang*180/Math.PI)%360+360)%360; document.getElementById('angTxt').textContent=deg.toFixed(1)+'°';
+  const s=[]; if(st.sb>0.05)s.push('위 '+Math.round(st.sb*100)); if(st.sb<-0.05)s.push('아래 '+Math.round(-st.sb*100));
+  if(st.sa>0.05)s.push('오른쪽 '+Math.round(st.sa*100)); if(st.sa<-0.05)s.push('왼쪽 '+Math.round(-st.sa*100));
+  document.getElementById('spinTxt').textContent=s.length?s.join(' · '):'중앙';}
+function syncButtons(){document.getElementById('shoot').disabled=moving; document.getElementById('undo').disabled=moving||!history.length;}
+
+function shoot(){if(moving)return; history.push(JSON.stringify(st)); if(history.length>30)history.shift();
+  const c=st.balls[st.cue]; strike(c,st.ang,speedOf(st.power),st.sa,st.sb);
+  shotEv={cushions:0,hit:[],scored:false,cushAtSecond:null}; trail=[[c.x,c.y]];
+  moving=true; st.shots++; setMsg('…'); syncButtons(); last=performance.now(); acc=0; requestAnimationFrame(loop);}
+function onEv(type,i,j){if(!shotEv)return; const cue=st.cue;
+  if(type==='rail'&&i===cue&&shotEv.hit.length<2) shotEv.cushions++;
+  if(type==='ball'&&(i===cue||j===cue)){const o=i===cue?j:i; if(!shotEv.hit.includes(o)){shotEv.hit.push(o);
+    if(shotEv.hit.length===2){shotEv.cushAtSecond=shotEv.cushions; if(shotEv.cushions>=3)shotEv.scored=true;}}}}
+function loop(now){let dt=Math.min(0.05,(now-last)/1000)*st.speed; last=now; acc+=dt; let n=0;
+  while(acc>=DT&&moving){moving=step(st.balls,DT,onEv); acc-=DT; if(++n%12===0){const c=st.balls[st.cue]; trail.push([c.x,c.y]);}}
+  draw(); if(moving)requestAnimationFrame(loop); else endShot();}
+function endShot(){const e=shotEv; const c=st.balls[st.cue]; trail.push([c.x,c.y]);
+  if(e.scored){st.score++; setMsg('득점! 쿠션 '+e.cushAtSecond+'회 후 제2적구','good');}
+  else{let why=e.hit.length===0?'적구를 하나도 못 맞힘':e.hit.length===1?'제2적구 미스 (쿠션 '+e.cushions+'회)':'쿠션 부족: '+e.cushAtSecond+'회';
+    setMsg('실패 · '+why+' → 공 교대','bad'); st.cue=st.cue===0?1:0; aimAtObject();}
+  shotEv=null; syncButtons(); ui(); draw();}
+
+function draw(){if(!M)return; ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); ctx.restore();
+  // wood frame
+  const wg=ctx.createLinearGradient(0,-T,0,W+T); wg.addColorStop(0,'#6b4426'); wg.addColorStop(.5,'#4a2d17'); wg.addColorStop(1,'#6b4426');
+  ctx.fillStyle=wg; roundRect(-T,-T,L+2*T,W+2*T,0.05); ctx.fill();
+  ctx.fillStyle='#174a8a'; ctx.fillRect(-CUSH,-CUSH,L+2*CUSH,W+2*CUSH);
+  const cg=ctx.createRadialGradient(L/2,W/2,0.1,L/2,W/2,1.6); cg.addColorStop(0,'#2468bb'); cg.addColorStop(1,'#1a539b');
+  ctx.fillStyle=cg; ctx.fillRect(0,0,L,W);
+  // diamonds
+  ctx.fillStyle='#efe6d2'; const dm=-CUSH-(T-CUSH)/2;
+  for(let i=0;i<=8;i++){diamond(i*L/8,dm); diamond(i*L/8,W-dm);} for(let j=1;j<4;j++){diamond(dm,j*W/4); diamond(L-dm,j*W/4);}
+  ctx.fillStyle='rgba(255,255,255,.35)'; [[0.71,0.71],[2.13,0.71],[1.42,0.71]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,0.006,0,7);ctx.fill();});
+  // trail
+  if(trail.length>1){ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=0.008; ctx.beginPath(); ctx.moveTo(...trail[0]); trail.forEach(p=>ctx.lineTo(...p)); ctx.stroke();}
+  if(!moving){if(st.guide)drawGuide(); drawCue();}
+  st.balls.forEach((b,i)=>{ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(b.x+0.006,b.y+0.008,R,0,7); ctx.fill();
+    const g=ctx.createRadialGradient(b.x-R*0.35,b.y-R*0.4,R*0.1,b.x,b.y,R); g.addColorStop(0,COLORS[b.id][0]); g.addColorStop(1,COLORS[b.id][1]);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(b.x,b.y,R,0,7); ctx.fill();
+    if(i===st.cue&&!moving){ctx.strokeStyle='rgba(214,165,74,.9)'; ctx.lineWidth=0.005; ctx.setLineDash([0.012,0.008]); ctx.beginPath(); ctx.arc(b.x,b.y,R+0.012,0,7); ctx.stroke(); ctx.setLineDash([]);}});}
+function roundRect(x,y,w,h,r){ctx.beginPath(); ctx.roundRect?ctx.roundRect(x,y,w,h,r):ctx.rect(x,y,w,h);}
+function diamond(x,y){const s=0.012; ctx.beginPath(); ctx.moveTo(x,y-s); ctx.lineTo(x+s*0.7,y); ctx.lineTo(x,y+s); ctx.lineTo(x-s*0.7,y); ctx.closePath(); ctx.fill();}
+function cast(px,py,dx,dy,skip){let best=Infinity,hit=null;
+  st.balls.forEach((b,i)=>{if(i===skip)return; const ox=px-b.x, oy=py-b.y; const bq=ox*dx+oy*dy, cq=ox*ox+oy*oy-4*R*R, disc=bq*bq-cq;
+    if(disc>0){const t=-bq-Math.sqrt(disc); if(t>1e-6&&t<best){best=t;hit={type:'ball',i};}}});
+  const walls=[[dx<0,(R-px)/dx,'x'],[dx>0,(L-R-px)/dx,'x'],[dy<0,(R-py)/dy,'y'],[dy>0,(W-R-py)/dy,'y']];
+  walls.forEach(([ok,t,ax])=>{if(ok&&t>1e-6&&t<best){best=t;hit={type:'rail',ax};}});
+  return {t:best,hit};}
+function drawGuide(){const c=st.balls[st.cue]; const dx=Math.cos(st.ang), dy=Math.sin(st.ang);
+  const r=cast(c.x,c.y,dx,dy,st.cue); const ex=c.x+dx*r.t, ey=c.y+dy*r.t;
+  ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=0.004; ctx.setLineDash([0.02,0.014]);
+  ctx.beginPath(); ctx.moveTo(c.x,c.y); ctx.lineTo(ex,ey); ctx.stroke();
+  ctx.beginPath(); ctx.arc(ex,ey,R,0,7); ctx.stroke(); ctx.setLineDash([]);
+  if(r.hit&&r.hit.type==='ball'){const b=st.balls[r.hit.i]; let nx=b.x-ex, ny=b.y-ey; const m=Math.hypot(nx,ny); nx/=m; ny/=m;
+    ctx.strokeStyle='rgba(214,165,74,.8)'; ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(b.x+nx*0.25,b.y+ny*0.25); ctx.stroke();}
+  else if(r.hit){const rx=r.hit.ax==='x'?-dx:dx, ry=r.hit.ax==='y'?-dy:dy; ctx.strokeStyle='rgba(255,255,255,.35)';
+    ctx.beginPath(); ctx.moveTo(ex,ey); ctx.lineTo(ex+rx*0.35,ey+ry*0.35); ctx.stroke();}}
+function drawCue(){const c=st.balls[st.cue]; const dx=Math.cos(st.ang), dy=Math.sin(st.ang); const g=R+0.015+st.power*0.13;
+  const sx0=c.x-dx*g, sy0=c.y-dy*g, sx1=c.x-dx*(g+1.3), sy1=c.y-dy*(g+1.3);
+  const lg=ctx.createLinearGradient(sx0,sy0,sx1,sy1); lg.addColorStop(0,'#e9eef2'); lg.addColorStop(0.012,'#e9eef2'); lg.addColorStop(0.015,'#d9b77a'); lg.addColorStop(0.6,'#a8763c'); lg.addColorStop(0.62,'#2a1a10'); lg.addColorStop(1,'#1a100a');
+  ctx.strokeStyle=lg; ctx.lineCap='round';
+  for(let k=0;k<6;k++){const f0=k/6,f1=(k+1)/6; ctx.lineWidth=0.011+0.012*f0; ctx.beginPath(); ctx.moveTo(sx0+(sx1-sx0)*f0,sy0+(sy1-sy0)*f0); ctx.lineTo(sx0+(sx1-sx0)*f1,sy0+(sy1-sy0)*f1); ctx.stroke();}
+  ctx.lineCap='butt';}
+
+function start(data){if(data&&data.balls)st=data; aimAtObject(); if(data&&data.balls)st.ang=data.ang; ui(); drawSpin(); syncButtons(); resize();}
+window.claude?.hot?.snapshot?.(()=>st);
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+</script></body></html>

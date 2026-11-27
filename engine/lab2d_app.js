@@ -10,7 +10,7 @@ const SLIDERS = [
   ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { aimMode: 'back', stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', L / 4, W / 2 - 0.1524, D), BP.makeBall('o', L / 4, W / 2, D), BP.makeBall('r', L * 3 / 4, W / 2, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -99,12 +99,14 @@ cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e
 function settle(hist) { const now = performance.now(); for (let i = hist.length - 1; i >= 0; i--) if (now - hist[i][0] >= 120) { if (Math.abs(st.phi - hist[i][1]) < 0.3 * Math.PI / 180) { st.phi = hist[i][1]; ui(); draw(); } return; } }
 const up = () => { if (drag && drag.k >= 0) buildPos(); if (drag && drag.aim) settle(drag.hist); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 function aimPoint(p) { const c = balls[0]; let x = p.x, y = p.y;
+  if (st.aimMode === 'back') { // 큐 쪽(수구 뒤)을 터치: 손가락 반대 방향으로 조준 → 손가락이 진로를 가리지 않음
+    if (Math.hypot(x - c.x, y - c.y) < 0.01) return; st.phi = Math.atan2(c.y - y, c.x - x); draw(); ui(); return; }
   const onFrame = x < -CUSH || x > L + CUSH || y < -CUSH || y > W + CUSH;
   if (onFrame) { const dm = CUSH + (RAIL - CUSH) / 2; // snap to 0.1 diamond on the diamond line
     const dists = [[Math.abs(x + dm), 'l'], [Math.abs(x - L - dm), 'r'], [Math.abs(y + dm), 'b'], [Math.abs(y - W - dm), 't']].sort((a, b) => a[0] - b[0]); const side = dists[0][1];
     if (side === 'l' || side === 'r') { x = side === 'l' ? -dm : L + dm; y = Math.round(Math.min(4, Math.max(0, y / DW)) * 10) / 10 * DW; }
     else { y = side === 'b' ? -dm : W + dm; x = Math.round(Math.min(8, Math.max(0, x / DL)) * 10) / 10 * DL; } }
-  if (Math.hypot(x - c.x, y - c.y) < 0.01) return; st.phi = Math.atan2(y - c.y, x - c.x); ui(); draw(); }
+  if (Math.hypot(x - c.x, y - c.y) < 0.01) return; st.phi = Math.atan2(y - c.y, x - c.x); draw(); ui(); }
 function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.round(x / DL * 4) / 4 * DL; y = Math.round(y / DW * 4) / 4 * DW; }
   x = Math.min(L - lim, Math.max(lim, x)); y = Math.min(W - lim, Math.max(lim, y));
   for (let i = 0; i < 3; i++) if (i !== k && Math.hypot(balls[i].x - x, balls[i].y - y) < 2 * R + 0.001) return;
@@ -203,6 +205,7 @@ function ui() { drawThick(); $('spinTxt').textContent = spinLabel(st.a, st.b); $
   $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }
 const toggle = (id, key, after) => { $(id).onclick = e => { st[key] = !st[key]; e.currentTarget.setAttribute('aria-pressed', st[key]); after && after(); draw(); }; };
+$('aimModeBtn').onclick = () => { st.aimMode = st.aimMode === 'back' ? 'front' : 'back'; $('aimModeBtn').textContent = st.aimMode === 'back' ? '조준: 큐 쪽 터치' : '조준: 진행 쪽 터치'; };
 toggle('guideBtn', 'guide'); toggle('pathBtn', 'path', () => { $('pathBtn').textContent = st.path ? '궤적 켜짐' : '궤적 꺼짐'; $('ghostBtn').disabled = !st.path; }); toggle('ghostBtn', 'ghost'); toggle('numBtn', 'nums'); toggle('soundBtn', 'sound'); toggle('pSnap', 'snap');
 $('rspeed').onclick = e => { st.rspeed = { 1: 0.5, 0.5: 0.25, 0.25: 0.1, 0.1: 2, 2: 4, 4: 1 }[st.rspeed]; e.currentTarget.textContent = st.rspeed + 'x'; if (play) play.speed = st.rspeed; };
 const DT_TITLE = { place: '공 배치', phys: '물리값', info: '샷 기록' };

@@ -175,15 +175,17 @@ function drawSpin() { const s = 168, c = s / 2, r = 78; sx.clearRect(0, 0, s, s)
 // 당점: 패드를 누른 곳으로 바로 이동하지 않고, 끄는 만큼 천천히 상대 이동(감도 0.5) → 손가락을 떼도 틀어지지 않음
 function setSpin(a, b) { const m = Math.hypot(a, b), lim = params.miscue * 0.98; if (m > lim) { a *= lim / m; b *= lim / m; }
   st.a = Math.abs(a) < 0.005 ? 0 : a; st.b = Math.abs(b) < 0.005 ? 0 : b; drawSpin(); ui(); }
+// 당점 패드(공과 분리된 조작 영역)와 공 그림 모두 '문지르기' 상대 이동. 패드는 감도 낮게(정밀), 공 그림은 보통
 let spinDrag = null;
-sc.addEventListener('pointerdown', e => { sc.setPointerCapture(e.pointerId); spinDrag = { x: e.clientX, y: e.clientY, hist: [] }; });
-sc.addEventListener('pointermove', e => { if (!spinDrag) return; const r = sc.getBoundingClientRect(), k = 2 / r.width * 0.5;
-  const dx = e.clientX - spinDrag.x, dy = e.clientY - spinDrag.y; spinDrag.x = e.clientX; spinDrag.y = e.clientY;
-  setSpin(st.a + dx * k, st.b - dy * k); spinDrag.hist.push([performance.now(), st.a, st.b]); if (spinDrag.hist.length > 40) spinDrag.hist.shift(); });
+function spinStart(el, gain) { return e => { el.setPointerCapture(e.pointerId); spinDrag = { el, gain, x: e.clientX, y: e.clientY, hist: [] }; el.classList.add('on'); }; }
+function spinMove(e) { if (!spinDrag) return; const dx = e.clientX - spinDrag.x, dy = e.clientY - spinDrag.y; spinDrag.x = e.clientX; spinDrag.y = e.clientY;
+  setSpin(st.a + dx * spinDrag.gain, st.b - dy * spinDrag.gain); spinDrag.hist.push([performance.now(), st.a, st.b]); if (spinDrag.hist.length > 40) spinDrag.hist.shift(); }
 const spinUp = () => { if (spinDrag) { const now = performance.now(), h = spinDrag.hist;
-    for (let i = h.length - 1; i >= 0; i--) if (now - h[i][0] >= 120) { if (Math.hypot(st.a - h[i][1], st.b - h[i][2]) < 0.04) setSpin(h[i][1], h[i][2]); break; } }
+    for (let i = h.length - 1; i >= 0; i--) if (now - h[i][0] >= 120) { if (Math.hypot(st.a - h[i][1], st.b - h[i][2]) < 0.04) setSpin(h[i][1], h[i][2]); break; }
+    spinDrag.el.classList.remove('on'); }
   spinDrag = null; };
-sc.addEventListener('pointerup', spinUp); sc.addEventListener('pointercancel', spinUp);
+for (const [el, gain] of [[$('spinPad'), 0.004], [sc, 0.007]]) { el.addEventListener('pointerdown', spinStart(el, gain)); el.addEventListener('pointermove', spinMove); el.addEventListener('pointerup', spinUp); el.addEventListener('pointercancel', spinUp); }
+$('spinPad').addEventListener('keydown', e => { const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key]; if (k) { e.preventDefault(); setSpin(st.a + k[0] * 0.02, st.b + k[1] * 0.02); } });
 document.querySelectorAll('#spinBtns button[data-da]').forEach(b => { let t1, t2; const go = () => setSpin(st.a + b.dataset.da * 0.02, st.b + b.dataset.db * 0.02);
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 70); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });

@@ -2,6 +2,7 @@
   <div id="view">
     <canvas id="cv" aria-label="당구대 (위에서 본 모습)"></canvas>
     <div id="topbar">
+      <span id="menu" class="seg3"><button type="button" class="chip" data-t="place">배치</button><button type="button" class="chip" data-t="phys">물리</button><button type="button" class="chip" data-t="info">기록</button></span>
       <button class="chip" id="pathBtn" type="button" aria-pressed="true">궤적 켜짐</button>
       <button class="chip" id="ghostBtn" type="button" aria-pressed="true">이전 샷 겹쳐보기</button>
       <button class="chip" id="guideBtn" type="button" aria-pressed="true">가이드</button>
@@ -13,12 +14,10 @@
     <div id="busy" hidden>계산 중…</div>
   </div>
   <aside id="panel">
-    <div id="menu" class="g3"><button type="button" data-t="place">배치</button><button type="button" data-t="phys">물리</button><button type="button" data-t="info">기록</button></div>
-    <div id="spinWrap"><canvas id="spin" width="168" height="168" aria-label="당점"></canvas>
-      <div class="col"><div class="row"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span></div>
-        <div class="row"><span class="lbl">기울기</span><span class="num" id="elevTxt"></span></div>
-        <input id="elev" type="range" min="3" max="75" step="1" value="5" aria-label="큐 기울기">
+    <div id="spinWrap"><canvas id="spin" width="168" height="168" aria-label="당점 표시"></canvas>
+      <div class="col"><div id="spinPad" role="slider" aria-label="당점 패드: 문질러서 당점 이동" tabindex="0"><b id="spinTxt" class="num">중앙</b><span>여기를 문질러 당점 이동</span></div>
         <div class="g5" id="spinBtns"><button type="button" class="sm" data-da="-1" data-db="0" aria-label="당점 왼쪽">◀</button><button type="button" class="sm" data-da="0" data-db="1" aria-label="당점 위">▲</button><button id="spinReset" type="button" class="sm" aria-label="당점 중앙">●</button><button type="button" class="sm" data-da="0" data-db="-1" aria-label="당점 아래">▼</button><button type="button" class="sm" data-da="1" data-db="0" aria-label="당점 오른쪽">▶</button></div></div></div>
+    <div class="elevRow"><span class="lbl">기울기</span><input id="elev" type="range" min="3" max="75" step="1" value="5" aria-label="큐 기울기"><span class="num" id="elevTxt"></span></div>
     <div><div class="row"><span class="lbl">힘 <span id="strokeSeg" class="seg3"><button type="button" class="sm chipbtn" data-s="push" aria-pressed="false">밀어</button><button type="button" class="sm chipbtn" data-s="normal" aria-pressed="true">보통</button><button type="button" class="sm chipbtn" data-s="snap" aria-pressed="false">끊어</button></span></span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
     <div id="thick"><div class="row"><span class="lbl">두께 · 1적구 <button type="button" id="tgt" class="sm chipbtn">빨강</button></span><span class="num" id="thkTxt"></span></div>
       <div class="thkrow"><button type="button" class="sm" data-k="-1" aria-label="두께 왼쪽으로">‹</button><canvas id="thk" width="400" height="96" aria-label="두께 조절: 좌우로 끌기"></canvas><button type="button" class="sm" data-k="1" aria-label="두께 오른쪽으로">›</button></div></div>

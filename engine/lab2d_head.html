@@ -1,0 +1,50 @@
+<title>3쿠션 물리 실험실</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600;700&family=Barlow+Condensed:wght@500;700&display=swap">
+<style>
+/* Layout: full-bleed 3D table; floating top bar; control panel docked right (landscape) or bottom sheet (portrait). Single dark billiard-hall look. */
+[hidden]{display:none!important}
+:root{--bg:#0d1116;--panel:rgba(22,28,36,.92);--line:#2f3b4b;--fg:#e9eef4;--muted:#93a1b3;--brass:#d6a54a;--good:#4cc38a;--bad:#e2675b;--ink:#1b1408;
+  --f-body:"IBM Plex Sans KR",system-ui,sans-serif;--f-num:"Barlow Condensed","IBM Plex Sans KR",sans-serif;color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);overflow:hidden;margin:0}
+#app{position:relative;height:100%;display:grid;grid-template-columns:1fr 232px}
+#view{position:relative;min-width:0;min-height:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#live{position:absolute;left:max(6px,env(safe-area-inset-left,0px));bottom:6px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none}
+#topbar{position:absolute;top:calc(6px + env(safe-area-inset-top,0px));left:max(6px,env(safe-area-inset-left,0px));right:6px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+#topbar>*{pointer-events:auto}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:12px;color:var(--fg)}
+#verdict{font-weight:700}
+#verdict.good{color:var(--good);border-color:var(--good)} #verdict.bad{color:var(--bad)}
+#busy{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--panel);padding:8px 14px;border-radius:8px;font-size:13px}
+#panel{background:#161c24;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);flex:none}
+#tabs button{border:0;border-radius:0;background:none;color:var(--muted);padding:9px 0;font-size:13px}
+#tabs button[aria-selected="true"]{color:var(--brass);box-shadow:inset 0 -2px 0 var(--brass)}
+.tab{padding:8px 10px;display:flex;flex-direction:column;gap:9px;overflow-y:auto;min-height:0;flex:1}
+.lbl{font-size:11px;letter-spacing:.05em;color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.num{font-family:var(--f-num);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+button{font:inherit;color:var(--fg);background:#26303d;border:1px solid var(--line);border-radius:6px;padding:7px 0;font-size:13px;touch-action:manipulation}
+button:active{background:#344258} button:disabled{opacity:.4}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brass);outline-offset:1px}
+button[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:5px} .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:5px} .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+#shoot{background:var(--brass);color:var(--ink);font-weight:700;font-size:16px;border:0;padding:11px 0}
+#spinWrap{display:flex;gap:10px;align-items:center}
+#spin{width:96px;height:96px;flex:none;touch-action:none;border-radius:50%}
+input[type=range]{width:100%;accent-color:var(--brass);margin:2px 0}
+select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px}
+.ev{font-size:12px;font-variant-numeric:tabular-nums;border-collapse:collapse;width:100%}
+.ev td{padding:3px 2px;border-bottom:1px solid var(--line)} .ev td:last-child{text-align:right}
+.note{font-size:11px;color:var(--muted);line-height:1.45;margin:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px} .kv b{text-align:right;font-family:var(--f-num);font-size:14px;font-weight:700}
+@media (orientation:portrait){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr minmax(0,44%)}
+  #panel{border-left:0;border-top:1px solid var(--line)}
+  .tab{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+}
+.field{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12px}
+.field input{font:inherit;width:100%;background:#0f141b;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 6px;min-width:0}
+</style>

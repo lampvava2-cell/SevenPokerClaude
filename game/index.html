@@ -143,7 +143,9 @@ table.rank th{font-weight:400;color:var(--muted);font-size:11px}
 <script>
 // PHYSICS-START
 const R=0.03075, L=2.84, W=1.42;
-const G=9.81, MU_S=0.2, MU_R=0.011, SPIN_DEC=10, E_BALL=0.94, E_RAIL=0.8, MU_RAIL=0.22, RAIL_ROLL_KEEP=0.35;
+// 아케이드 튜닝: 실제보다 회전 효과(밀어치기·끌어치기·좌우 회전)를 과장
+const G=9.81, MU_S=0.1, MU_R=0.011, SPIN_DEC=4, E_BALL=0.94, E_RAIL=0.8, MU_RAIL=0.45, RAIL_ROLL_KEEP=0.35;
+const SPIN_GAIN=1.8, SIDE_GAIN=1.8, KICK=0.35;
 const DT=1/1000;
 function makeBalls(){return [
   {id:'w',x:0.71,y:0.71+0.1524,vx:0,vy:0,wx:0,wy:0,wz:0},
@@ -154,9 +156,9 @@ function strike(b,ang,V,a,bv){
   const dx=Math.cos(ang), dy=Math.sin(ang);
   b.vx=V*dx; b.vy=V*dy;
   const tb=0.5*bv, ta=0.5*a; // fraction of R
-  const k=2.5*tb*V/R;
+  const k=2.5*tb*V/R*SPIN_GAIN;
   b.wx=k*(-dy); b.wy=k*dx;
-  b.wz=-2.5*ta*V/R;
+  b.wz=-2.5*ta*V/R*SIDE_GAIN;
 }
 function railHit(b,nx,ny){
   const vn=b.vx*nx+b.vy*ny; if(vn>=0) return false;
@@ -187,6 +189,9 @@ function friction(b,dt){
   }
   const d=SPIN_DEC*dt; if(Math.abs(b.wz)<=d) b.wz=0; else b.wz-=Math.sign(b.wz)*d;
 }
+// 충돌 직후 남은 위/아래 회전을 즉시 일부 속도로 바꿔 '왕오시'·'히끼'가 시원하게 나가도록
+function kick(b,nx,ny){if(!KICK)return; const vn=b.vx*nx+b.vy*ny; const rvn=(b.wy*R)*nx+(-b.wx*R)*ny; const d=KICK*(rvn-vn);
+  b.vx+=d*nx; b.vy+=d*ny; const dw=2.5*d/R; b.wy-=dw*nx; b.wx-=dw*-ny;}
 // returns true if anything still moving. ev(type, i, j)
 function step(balls,dt,ev){
   for(const b of balls){b.x+=b.vx*dt; b.y+=b.vy*dt;}
@@ -194,7 +199,7 @@ function step(balls,dt,ev){
     const p=balls[i],q=balls[j]; let dx=q.x-p.x, dy=q.y-p.y; const d2=dx*dx+dy*dy;
     if(d2<4*R*R){const d=Math.sqrt(d2)||1e-9; const nx=dx/d, ny=dy/d;
       const rel=(p.vx-q.vx)*nx+(p.vy-q.vy)*ny;
-      if(rel>0){const jj=(1+E_BALL)/2*rel; p.vx-=jj*nx;p.vy-=jj*ny;q.vx+=jj*nx;q.vy+=jj*ny; ev&&ev('ball',i,j);}
+      if(rel>0){const jj=(1+E_BALL)/2*rel; p.vx-=jj*nx;p.vy-=jj*ny;q.vx+=jj*nx;q.vy+=jj*ny; kick(p,nx,ny); kick(q,nx,ny); ev&&ev('ball',i,j);}
       const ov=(2*R-d)/2; p.x-=ov*nx;p.y-=ov*ny;q.x+=ov*nx;q.y+=ov*ny;}
   }
   balls.forEach((b,i)=>{

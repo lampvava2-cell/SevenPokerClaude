@@ -84,7 +84,7 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
     <div id="spinWrap"><canvas id="spin" width="168" height="168" aria-label="당점"></canvas>
       <div class="col"><div class="row"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span></div>
         <div class="row"><span class="lbl">기울기</span><span class="num" id="elevTxt"></span></div>
-        <input id="elev" type="range" min="0" max="75" step="1" value="5" aria-label="큐 기울기">
+        <input id="elev" type="range" min="3" max="75" step="1" value="5" aria-label="큐 기울기">
         <button id="spinReset" type="button" class="sm">당점 중앙</button></div></div>
     <div><div class="row"><span class="lbl">힘</span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
     <div id="thick"><div class="row"><span class="lbl">두께 · 1적구 <button type="button" id="tgt" class="sm chipbtn">빨강</button></span><span class="num" id="thkTxt"></span></div>
@@ -444,8 +444,8 @@ function cast(px, py, dx, dy) { let best = Infinity, hit = null;
   [[dx < 0, (lim - px) / dx, 'x'], [dx > 0, (L - lim - px) / dx, 'x'], [dy < 0, (lim - py) / dy, 'y'], [dy > 0, (W - lim - py) / dy, 'y']].forEach(([ok, t, ax]) => { if (ok && t > 1e-6 && t < best) { best = t; hit = { type: 'rail', ax }; } });
   return { t: best, hit }; }
 function drawGuide() { const c = balls[0];
-  { const rp = realPhi(); if (Math.abs(rp - st.phi) > 1e-4) { const ux = Math.cos(rp), uy = Math.sin(rp), rr2 = cast(c.x, c.y, ux, uy), qx = c.x + ux * rr2.t, qy = c.y + uy * rr2.t;
-    ctx.strokeStyle = 'rgba(214,165,74,.85)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.008, 0.01]); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(qx, qy); ctx.stroke(); ctx.beginPath(); ctx.arc(qx, qy, R, 0, 7); ctx.stroke(); ctx.setLineDash([]); } }
+  if (st.a !== 0 || st.elev > 8) { const tr = realTrace(); ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.008, 0.01]);
+    ctx.beginPath(); ctx.moveTo(tr.pts[0][0], tr.pts[0][1]); tr.pts.forEach(p => ctx.lineTo(p[0], p[1])); ctx.stroke(); ctx.beginPath(); ctx.arc(tr.end[0], tr.end[1], R, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   const dx = Math.cos(st.phi), dy = Math.sin(st.phi), r = cast(c.x, c.y, dx, dy), ex = c.x + dx * r.t, ey = c.y + dy * r.t;
   ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.018, 0.012]); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(ex, ey); ctx.stroke();
   ctx.beginPath(); ctx.arc(ex, ey, R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
@@ -483,8 +483,18 @@ function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NA
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
 /* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
-function realPhi() { const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
-  BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180 }); return Math.atan2(b.vy, b.vx); }
+// 수구만 실제 물리로 굴려서 첫 충돌(공 또는 쿠션)까지의 진짜 경로를 구함: 스쿼트 + 스워브(휘어짐) 모두 반영
+let traceCache = null;
+function realTrace() { const key = [st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
+  if (traceCache && traceCache.key === key) return traceCache;
+  const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
+  BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180 });
+  const pts = [[b.x, b.y]], lim = R * Math.sqrt(1 - Math.pow((params.cushionH - R) / R, 2)); let hit = null, n = 0;
+  while (n++ < 80000) { BP._int.cloth(params, b, params.dt); b.x += b.vx * params.dt; b.y += b.vy * params.dt; if (b.air) { b.z += b.vz * params.dt; if (b.z <= R) { b.z = R; b.vz = 0; b.air = false; } }
+    if (n % 40 === 0) pts.push([b.x, b.y]);
+    for (let i = 1; i < 3; i++) if (Math.hypot(balls[i].x - b.x, balls[i].y - b.y) < 2 * R) { hit = { i, x: b.x, y: b.y, vx: b.vx, vy: b.vy }; break; }
+    if (hit || b.x < lim || b.x > L - lim || b.y < lim || b.y > W - lim || Math.hypot(b.vx, b.vy) < 0.01) break; }
+  pts.push([b.x, b.y]); traceCache = { key, pts, hit, end: [b.x, b.y] }; return traceCache; }
 
 /* ---------- thickness (두께) ---------- */
 // x = signed lateral offset of the aim line from the 1st object ball centre (+ = aim passes on the left -> hits its left side)
@@ -500,9 +510,14 @@ function drawThick() { const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2
   const col = COLORS[st.tgt]; let g = tx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
   if (ti.front) { const gx = cx - ti.x * k; tx.fillStyle = 'rgba(255,255,255,.55)'; tx.strokeStyle = '#fff'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.fill(); tx.stroke(); }
   const lbl = t => !t.front ? '적구가 뒤쪽' : t.f === null ? '안 맞음' : (Math.abs(t.x) < 1e-4 ? '정면' : (t.x > 0 ? '좌 ' : '우 ') + frac8(t.f)) + ' ' + Math.round(t.f * 100) + '%';
-  const rp = realPhi(), tr = thickInfo(rp);
-  if (tr.front) { const gx = cx - tr.x * k; tx.setLineDash([5, 4]); tx.strokeStyle = '#d6a54a'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.stroke(); tx.setLineDash([]); }
-  $('thkTxt').textContent = lbl(ti) + (Math.abs(rp - st.phi) > 1e-4 ? ' → 실제 ' + lbl(tr) : ''); }
+  let real = '';
+  if (st.a !== 0 || st.elev > 8) { const t = realTrace(), o = balls[st.tgt];
+    if (t.hit && t.hit.i === st.tgt) { // contact offset measured across the cue ball's direction at impact
+      const sp = Math.hypot(t.hit.vx, t.hit.vy), ux = t.hit.vx / sp, uy = t.hit.vy / sp, rx = o.x - t.hit.x, ry = o.y - t.hit.y, xo = -(ux * ry - uy * rx);
+      const f = Math.max(0, 1 - Math.abs(xo) / (2 * R)), tr = { front: true, x: xo, f }; const gx = cx - xo * k;
+      tx.setLineDash([5, 4]); tx.strokeStyle = '#d6a54a'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.stroke(); tx.setLineDash([]); real = ' → 실제 ' + lbl(tr); }
+    else real = ' → 실제 ' + (t.hit ? '다른 공에 먼저 맞음' : '안 맞음'); }
+  $('thkTxt').textContent = lbl(ti) + real; }
 let thkDrag = null;
 tc.addEventListener('pointerdown', e => { if (play) return; tc.setPointerCapture(e.pointerId); thkDrag = { x: e.clientX, hist: [] }; });
 tc.addEventListener('pointermove', e => { if (!thkDrag) return; const dx = e.clientX - thkDrag.x; thkDrag.x = e.clientX; const w = tc.getBoundingClientRect().width;

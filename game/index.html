@@ -145,9 +145,9 @@ table.rank th{font-weight:400;color:var(--muted);font-size:11px}
 const R=0.03075, L=2.84, W=1.42;
 // 아케이드 튜닝: 실제보다 회전 효과(밀어치기·끌어치기·좌우 회전)를 과장
 const G=9.81, MU_S=0.1, MU_R=0.011, SPIN_DEC=4, E_BALL=0.94, E_RAIL=0.8, MU_RAIL=0.45, RAIL_ROLL_KEEP=0.35;
-const SPIN_GAIN=1.8, SIDE_GAIN=1.8, KICK=0.35;
+const SPIN_GAIN=1.8, SIDE_GAIN=1.8, KICK=0.15;
 // 쿠션마다 회전 손실 / 회전이 셀수록 쿠션 그립↑·구름 저항↓ (더 멀리 감)
-const RAIL_SPIN_KEEP=0.85, RAIL_TOP_KEEP=0.85, SPIN_GRIP=0.3, SPIN_GLIDE=0.45;
+const AIR_BASE=0.1, AIR_K=0.03, AIR_MAX=0.25, LAND_GRAB=0.4, HOP_DAMP=0.6, OVERSPIN_KEEP=0.95, RAIL_SPIN_KEEP=0.85, RAIL_TOP_KEEP=0.85, SPIN_GRIP=0.3, SPIN_GLIDE=0.45;
 function spinLevel(b){const sp=Math.hypot(b.vx,b.vy); return Math.min(1,Math.abs(R*b.wz)/(sp+0.4));}
 const DT=1/1000;
 function makeBalls(){return [
@@ -164,9 +164,10 @@ function strike(b,ang,V,a,bv){
   b.wz=-2.5*ta*V/R*SIDE_GAIN;
 }
 function railHit(b,nx,ny){
-  const vn=b.vx*nx+b.vy*ny; if(vn>=0) return false;
+  const vn=b.vx*nx+b.vy*ny; if(vn>=0) return false; b.lastHitV=-vn;
   const tx=-ny, ty=nx; let vt=b.vx*tx+b.vy*ty;
-  const e=E_RAIL-Math.min(0.18,0.035*(-vn));
+  let e=E_RAIL-Math.min(0.18,0.035*(-vn));
+  {const rvn0=(b.wy*R)*nx+(-b.wx*R)*ny; const ex0=Math.max(0,-rvn0+vn); if(ex0>0.3) e*=1-HOP_DAMP*Math.min(1,ex0/(-vn+0.5));}
   const vn2=-e*vn;
   const s=vt-R*b.wz;
   const lvl=spinLevel(b);
@@ -174,15 +175,21 @@ function railHit(b,nx,ny){
   if(dvt>lim)dvt=lim; if(dvt<-lim)dvt=-lim;
   vt+=dvt; b.wz+=-2.5*dvt/R; b.wz*=RAIL_SPIN_KEEP;
   let rvx=b.wy*R, rvy=-b.wx*R;
-  let rvn=rvx*nx+rvy*ny; let rvt=rvx*tx+rvy*ty; rvn*=RAIL_ROLL_KEEP; rvt*=RAIL_TOP_KEEP;
+  let rvn=rvx*nx+rvy*ny; let rvt=rvx*tx+rvy*ty; rvt*=RAIL_TOP_KEEP;
+  // 자연 구름을 넘는 '과회전'(강한 밀어치기)은 쿠션에서 대부분 살아남아 공이 같은 쿠션을 통통 다시 때림
+  {const tow=-rvn, nat=-vn; const base=Math.max(-nat,Math.min(tow,nat)), ex=Math.max(0,tow-nat); rvn=-(base*RAIL_ROLL_KEEP+ex*OVERSPIN_KEEP); if(ex>0.3)b.air=Math.min(AIR_MAX,AIR_BASE+AIR_K*ex);}
   rvx=rvn*nx+rvt*tx; rvy=rvn*ny+rvt*ty; b.wy=rvx/R; b.wx=-rvy/R;
   b.vx=vn2*nx+vt*tx; b.vy=vn2*ny+vt*ty;
   return true;
 }
 function friction(b,dt){
   const cvx=b.vx-R*b.wy, cvy=b.vy+R*b.wx, sl=Math.hypot(cvx,cvy);
-  if(sl>3.5*MU_S*G*dt){
-    const fx=-MU_S*G*cvx/sl, fy=-MU_S*G*cvy/sl;
+  // 쿠션에서 과회전으로 튀어오른 동안(공중): 마찰 없음 → 착지 순간 회전이 바닥을 강하게 움켜쥠
+  if(b.air>0){b.air-=dt; if(b.air<=0){b.air=0; const g=-(2/7)*LAND_GRAB; const dvx=g*cvx, dvy=g*cvy; b.vx+=dvx; b.vy+=dvy; b.wx+=2.5/R*dvy; b.wy+=-2.5/R*dvx;}
+    const d=SPIN_DEC*dt; if(Math.abs(b.wz)<=d) b.wz=0; else b.wz-=Math.sign(b.wz)*d; return;}
+  const mu=MU_S;
+  if(sl>3.5*mu*G*dt){
+    const fx=-mu*G*cvx/sl, fy=-mu*G*cvy/sl;
     b.vx+=fx*dt; b.vy+=fy*dt;
     b.wx+=2.5/R*fy*dt; b.wy+=-2.5/R*fx*dt;
   } else {
@@ -207,10 +214,10 @@ function step(balls,dt,ev){
       const ov=(2*R-d)/2; p.x-=ov*nx;p.y-=ov*ny;q.x+=ov*nx;q.y+=ov*ny;}
   }
   balls.forEach((b,i)=>{
-    if(b.x<R){b.x=R; if(railHit(b,1,0))ev&&ev('rail',i,0);}
-    if(b.x>L-R){b.x=L-R; if(railHit(b,-1,0))ev&&ev('rail',i,1);}
-    if(b.y<R){b.y=R; if(railHit(b,0,1))ev&&ev('rail',i,2);}
-    if(b.y>W-R){b.y=W-R; if(railHit(b,0,-1))ev&&ev('rail',i,3);}
+    if(b.x<R){b.x=R; if(railHit(b,1,0)&&b.lastHitV>0.04)ev&&ev('rail',i,0);}
+    if(b.x>L-R){b.x=L-R; if(railHit(b,-1,0)&&b.lastHitV>0.04)ev&&ev('rail',i,1);}
+    if(b.y<R){b.y=R; if(railHit(b,0,1)&&b.lastHitV>0.04)ev&&ev('rail',i,2);}
+    if(b.y>W-R){b.y=W-R; if(railHit(b,0,-1)&&b.lastHitV>0.04)ev&&ev('rail',i,3);}
   });
   let moving=false;
   for(const b of balls){friction(b,dt);
@@ -312,7 +319,7 @@ function shoot(){if(locked())return; history.push(JSON.stringify(st)); if(histor
   strike(c,st.ang,V,st.sa,st.sb);
   shotEv={cushions:0,hit:[],first:null,scored:false,cushAtSecond:null}; trail=[[c.x,c.y]];
   moving=true; simT=0; recAcc=0; pushFrame(); setMsg('…'); syncButtons(); last=performance.now(); acc=0; requestAnimationFrame(loop);}
-function pushFrame(){const f=new Float32Array(6); st.balls.forEach((b,i)=>{f[i*2]=b.x;f[i*2+1]=b.y;}); rec.frames.push(f);}
+function pushFrame(){const f=new Float32Array(9); st.balls.forEach((b,i)=>{f[i*2]=b.x;f[i*2+1]=b.y;f[6+i]=b.air>0?1:0;}); rec.frames.push(f);}
 function onEv(type,i,j){if(!shotEv)return;
   if(type==='rail'&&i===0){if(!shotEv.first)shotEv.first='rail'; if(shotEv.hit.length<2){shotEv.cushions++; rec.marks.push([simT,'c']);}}
   if(type==='ball'&&(i===0||j===0)){const o=i===0?j:i; if(!shotEv.first)shotEv.first='ball';
@@ -350,11 +357,12 @@ function draw(pos,tr){if(!M||!st)return; ctx.save(); ctx.setTransform(1,0,0,1,0,
   ctx.fillStyle='rgba(255,255,255,.35)'; [[0.71,0.71],[2.13,0.71],[1.42,0.71]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,0.006,0,7);ctx.fill();});
   const t=tr||trail;
   if(t.length>1){ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=0.008; ctx.beginPath(); ctx.moveTo(t[0][0],t[0][1]); t.forEach(p=>ctx.lineTo(p[0],p[1])); ctx.stroke();}
-  const balls=pos?st.balls.map((b,i)=>({id:b.id,x:pos[i*2],y:pos[i*2+1]})):st.balls;
+  const balls=pos?st.balls.map((b,i)=>({id:b.id,x:pos[i*2],y:pos[i*2+1],air:pos.length>6?pos[6+i]:0})):st.balls;
   if(!pos&&!moving&&st.phase==='play'){if(st.guide)drawGuide(); drawCue();}
-  balls.forEach((b,i)=>{ctx.fillStyle='rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(b.x+0.006,b.y+0.008,R,0,7); ctx.fill();
-    const g=ctx.createRadialGradient(b.x-R*0.35,b.y-R*0.4,R*0.1,b.x,b.y,R); g.addColorStop(0,COLORS[b.id][0]); g.addColorStop(1,COLORS[b.id][1]);
-    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(b.x,b.y,R,0,7); ctx.fill();});}
+  balls.forEach((b,i)=>{const up=b.air>0?1:0, r=R*(1+0.12*up), so=0.007+0.014*up;  // 쿠션에서 튀어 뜬 공은 크게, 그림자는 멀리
+    ctx.fillStyle=up?'rgba(0,0,0,.22)':'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(b.x+so,b.y+so*1.2,R,0,7); ctx.fill();
+    const g=ctx.createRadialGradient(b.x-r*0.35,b.y-r*0.4,r*0.1,b.x,b.y,r); g.addColorStop(0,COLORS[b.id][0]); g.addColorStop(1,COLORS[b.id][1]);
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(b.x,b.y,r,0,7); ctx.fill();});}
 function diamond(x,y){const s=0.012; ctx.beginPath(); ctx.moveTo(x,y-s); ctx.lineTo(x+s*0.7,y); ctx.lineTo(x,y+s); ctx.lineTo(x-s*0.7,y); ctx.closePath(); ctx.fill();}
 function cast(px,py,dx,dy){let best=Infinity,hit=null;
   st.balls.forEach((b,i)=>{if(i===0)return; const ox=px-b.x, oy=py-b.y; const bq=ox*dx+oy*dy, cq=ox*ox+oy*oy-4*R*R, disc=bq*bq-cq;

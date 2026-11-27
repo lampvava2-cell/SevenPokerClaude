@@ -145,8 +145,12 @@ const BilliardPhysics = (() => {
     eTable: 0.45,         // ball-slate bounce restitution (landing)
     cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
     // 스트로크: 유효 큐 질량(그립·손목이 함께 미는 정도), 팁 반발, 현장 체감 회전 보정
-    strokes: { push: { mass: 0.66, tipE: 0.80, spin: -0.08 }, normal: { mass: 0.52, tipE: 0.78, spin: 0 }, snap: { mass: 0.44, tipE: 0.72, spin: 0.14 } },
-    strokeFeel: 0.5,      // 0 = 순수 물리, 1 = 현장 체감 보정 최대
+    // 스트로크 (현장 지도서 공통 내용 반영):
+    //  밀어치기(가속하며 통과): 큐가 공을 오래 밀어 '전진력' 추가 → 앞으로 잘 밀림, 하단은 덜 끌려옴, 진로 길고 힘참, 회전 영향은 상대적으로 작음
+    //  끊어치기(임팩트 직후 정지): 전진력 억제(스턴 성향) → 분리각 커짐, 진로 짧고 약함, 하단은 강하게 끌려옴, 회전 변화 극적
+    //  roll: 자연 구름 대비 추가 전진회전 비율, spin: 당점 회전 배율, mass/tipE: 유효 큐 질량·팁 반발
+    strokes: { push: { mass: 0.66, tipE: 0.80, roll: 0.22, spin: 0.90 }, normal: { mass: 0.52, tipE: 0.78, roll: 0, spin: 1 }, snap: { mass: 0.44, tipE: 0.70, roll: -0.18, spin: 1.15 } },
+    strokeFeel: 1.0,      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -177,15 +181,17 @@ const BilliardPhysics = (() => {
     const p = [0, 1, 2].map(k => a*R*rgt[k] + b*R*up[k] - c*d[k]);
     const pxd = cross(p, d);
     const invMeff = 1/m + dot(pxd, pxd) / I;
-    const S = (P.strokes && P.strokes[shot.stroke || 'normal']) || { mass: P.cueMass, tipE: P.cueTipE, spin: 0 };
+    const S = (P.strokes && P.strokes[shot.stroke || 'normal']) || { mass: P.cueMass, tipE: P.cueTipE, roll: 0, spin: 1 };
     const cueM = shot.stroke && shot.stroke !== 'normal' ? S.mass : P.cueMass, tipE = shot.stroke && shot.stroke !== 'normal' ? S.tipE : P.cueTipE;
     let J = (1 + tipE) * shot.V / (1/cueM + invMeff);
     if (miscue) J *= 0.35;
     const Jv = d.map(k => k * J);
     ball.vx += Jv[0]/m; ball.vy += Jv[1]/m; ball.vz += Jv[2]/m;
     const dw = cross(p, Jv);
-    const sk = 1 + (S.spin || 0) * (P.strokeFeel || 0);   // 체감 보정: 끊어치기는 회전이 더 살아 있고 밀어치기는 덜함
+    const fe = P.strokeFeel || 0, sk = 1 + ((S.spin || 1) - 1) * fe, rk = (S.roll || 0) * fe;
     ball.wx += sk * dw[0]/I; ball.wy += sk * dw[1]/I; ball.wz += sk * dw[2]/I;
+    // 전진력(+)/스턴(-) 성분: 진행 방향 자연 구름 회전의 일정 비율을 더하거나 뺌
+    ball.wx += rk * (-ball.vy / R); ball.wy += rk * (ball.vx / R);
     // squirt: cue ball deflects away from the side of english
     const aa = Math.max(-0.95, Math.min(0.95, a));
     const sq = Math.atan(2.5 * Math.abs(aa) * Math.sqrt(1 - aa*aa) / (1 + m / P.cueEndMass + 2.5 * (1 - aa*aa))) * Math.sign(aa);
@@ -388,7 +394,7 @@ const COND = { fast: { muR: 0.0065, muS: 0.18, spinDecel: 8, eCushion: 0.88 }, n
 const SLIDERS = [
   ['muR', '구름 저항', 0.004, 0.016, 0.0005], ['muS', '미끄럼 마찰', 0.1, 0.35, 0.01], ['spinDecel', '좌우회전 감쇠 (rad/s²)', 2, 25, 0.5],
   ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.035, 0.044, 0.0005, 1000],
-  ['strokeFeel', '스트로크 체감 보정 (0=순수 물리)', 0, 1, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
+  ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
 const st = { stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };

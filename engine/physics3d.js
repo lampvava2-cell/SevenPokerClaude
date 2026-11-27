@@ -24,8 +24,12 @@ const BilliardPhysics = (() => {
     eTable: 0.45,         // ball-slate bounce restitution (landing)
     cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
     // 스트로크: 유효 큐 질량(그립·손목이 함께 미는 정도), 팁 반발, 현장 체감 회전 보정
-    strokes: { push: { mass: 0.66, tipE: 0.80, spin: -0.08 }, normal: { mass: 0.52, tipE: 0.78, spin: 0 }, snap: { mass: 0.44, tipE: 0.72, spin: 0.14 } },
-    strokeFeel: 0.5,      // 0 = 순수 물리, 1 = 현장 체감 보정 최대
+    // 스트로크 (현장 지도서 공통 내용 반영):
+    //  밀어치기(가속하며 통과): 큐가 공을 오래 밀어 '전진력' 추가 → 앞으로 잘 밀림, 하단은 덜 끌려옴, 진로 길고 힘참, 회전 영향은 상대적으로 작음
+    //  끊어치기(임팩트 직후 정지): 전진력 억제(스턴 성향) → 분리각 커짐, 진로 짧고 약함, 하단은 강하게 끌려옴, 회전 변화 극적
+    //  roll: 자연 구름 대비 추가 전진회전 비율, spin: 당점 회전 배율, mass/tipE: 유효 큐 질량·팁 반발
+    strokes: { push: { mass: 0.66, tipE: 0.80, roll: 0.22, spin: 0.90 }, normal: { mass: 0.52, tipE: 0.78, roll: 0, spin: 1 }, snap: { mass: 0.44, tipE: 0.70, roll: -0.18, spin: 1.15 } },
+    strokeFeel: 1.0,      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -56,15 +60,17 @@ const BilliardPhysics = (() => {
     const p = [0, 1, 2].map(k => a*R*rgt[k] + b*R*up[k] - c*d[k]);
     const pxd = cross(p, d);
     const invMeff = 1/m + dot(pxd, pxd) / I;
-    const S = (P.strokes && P.strokes[shot.stroke || 'normal']) || { mass: P.cueMass, tipE: P.cueTipE, spin: 0 };
+    const S = (P.strokes && P.strokes[shot.stroke || 'normal']) || { mass: P.cueMass, tipE: P.cueTipE, roll: 0, spin: 1 };
     const cueM = shot.stroke && shot.stroke !== 'normal' ? S.mass : P.cueMass, tipE = shot.stroke && shot.stroke !== 'normal' ? S.tipE : P.cueTipE;
     let J = (1 + tipE) * shot.V / (1/cueM + invMeff);
     if (miscue) J *= 0.35;
     const Jv = d.map(k => k * J);
     ball.vx += Jv[0]/m; ball.vy += Jv[1]/m; ball.vz += Jv[2]/m;
     const dw = cross(p, Jv);
-    const sk = 1 + (S.spin || 0) * (P.strokeFeel || 0);   // 체감 보정: 끊어치기는 회전이 더 살아 있고 밀어치기는 덜함
+    const fe = P.strokeFeel || 0, sk = 1 + ((S.spin || 1) - 1) * fe, rk = (S.roll || 0) * fe;
     ball.wx += sk * dw[0]/I; ball.wy += sk * dw[1]/I; ball.wz += sk * dw[2]/I;
+    // 전진력(+)/스턴(-) 성분: 진행 방향 자연 구름 회전의 일정 비율을 더하거나 뺌
+    ball.wx += rk * (-ball.vy / R); ball.wy += rk * (ball.vx / R);
     // squirt: cue ball deflects away from the side of english
     const aa = Math.max(-0.95, Math.min(0.95, a));
     const sq = Math.atan(2.5 * Math.abs(aa) * Math.sqrt(1 - aa*aa) / (1 + m / P.cueEndMass + 2.5 * (1 - aa*aa))) * Math.sign(aa);

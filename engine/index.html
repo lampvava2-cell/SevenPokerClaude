@@ -669,9 +669,11 @@ function burst(t0, dur, amp, type, freq, q, wet) { const C = AU.ctx, s = C.creat
   s.connect(f).connect(g); out(g, wet); s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.02); }
 function snd(kind, speed) { if (!st.sound) return; const C = audioInit(); if (!C) return; if (C.state === 'suspended') C.resume();
   const t0 = C.currentTime + 0.005, v = Math.min(1, Math.pow(Math.max(0.02, speed) / 4, 0.75)), j = 1 + (Math.random() - 0.5) * 0.06;
-  if (kind === 'ball') { // 공-공: 날카로운 접촉음 + 공 자체 공진 (2.9k / 4.8k / 1.3k)
-    burst(t0, 0.006, 0.55 * v, 'highpass', 2500, 0.7, 0.3);
-    tone(t0, 2950 * j, 0.045, 0.32 * v, 0.35); tone(t0, 4800 * j, 0.028, 0.16 * v, 0.3); tone(t0, 1300 * j, 0.06, 0.12 * v, 0.4);
+  if (kind === 'ball') { // 공-공: 묵직한 '딱' — 낮은 몸통 울림을 중심으로, 맑은 고음은 살짝만
+    burst(t0, 0.009, 0.5 * v, 'bandpass', 1900, 0.9, 0.35);                     // 접촉 순간
+    tone(t0, 1750 * j, 0.075, 0.30 * v, 0.4); tone(t0, 2650 * j, 0.05, 0.14 * v, 0.35); // 공 공진 (낮춘 음높이, 긴 여운)
+    tone(t0, 880 * j, 0.09, 0.22 * v, 0.45);                                      // 중저역 몸통
+    tone(t0, 260 * j, 0.06, 0.26 * v, 0.2, 190);                                  // 무게감 있는 저음 펀치
   } else if (kind === 'cushion') { // 쿠션: 고무가 받는 둔탁한 저음 + 레일 나무 울림
     tone(t0, 150 * j, 0.11, 0.55 * v, 0.25, 85); burst(t0, 0.05, 0.35 * v, 'lowpass', 520, 0.8, 0.2); tone(t0 + 0.002, 410 * j, 0.07, 0.10 * v, 0.4);
   } else if (kind === 'cue') { // 가죽 팁 '톡' + 큐 나무 공진

@@ -267,7 +267,7 @@ function powTo(e){const r=pw.getBoundingClientRect(); st.power=Math.min(1,Math.m
 pw.addEventListener('pointerdown',e=>{if(locked())return; pdrag=true; pw.setPointerCapture(e.pointerId); powTo(e);});
 pw.addEventListener('pointermove',e=>{if(pdrag)powTo(e);}); pw.addEventListener('pointerup',()=>pdrag=false);
 pw.addEventListener('keydown',e=>{if(e.key==='ArrowRight')st.power=Math.min(1,st.power+0.01); if(e.key==='ArrowLeft')st.power=Math.max(0.02,st.power-0.01); ui(); draw();});
-const speedOf=p=>0.25+4.75*p*p;
+const speedOf=p=>0.5+9.5*p*p;
 $('guide').onclick=e=>{st.guide=!st.guide; e.currentTarget.setAttribute('aria-pressed',st.guide); draw();};
 $('speed').onclick=e=>{st.speed=st.speed===1?2:st.speed===2?4:1; e.currentTarget.textContent=st.speed+'x';};
 $('undo').onclick=()=>{if(locked()||!history.length)return; st=JSON.parse(history.pop()); shots.pop(); trail=[]; setMsg('한 샷 되돌렸습니다'); refresh();};

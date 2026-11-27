@@ -10,7 +10,7 @@ const SLIDERS = [
   ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { tgt: 2, phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', 0.71, 0.71 - 0.1524, D), BP.makeBall('o', 0.71, 0.71, D), BP.makeBall('r', 2.13, 0.71, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -90,9 +90,11 @@ function drawCue() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st
 let drag = null;
 cv.addEventListener('pointerdown', e => { if (play) return; cv.setPointerCapture(e.pointerId); const p = toWorld(e);
   if (st.edit) { let k = -1, best = 0.09; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
-  drag = { aim: true }; aimPoint(p); });
-cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) aimPoint(p); else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
-const up = () => { if (drag && drag.k >= 0) buildPos(); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  drag = { aim: true, hist: [] }; aimPoint(p); });
+cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) { aimPoint(p); drag.hist.push([performance.now(), st.phi]); if (drag.hist.length > 40) drag.hist.shift(); } else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
+// 손가락을 뗄 때 생기는 미세한 흔들림만 되돌림 (마지막 120ms 동안 0.3° 미만 변화일 때)
+function settle(hist) { const now = performance.now(); for (let i = hist.length - 1; i >= 0; i--) if (now - hist[i][0] >= 120) { if (Math.abs(st.phi - hist[i][1]) < 0.3 * Math.PI / 180) { st.phi = hist[i][1]; ui(); draw(); } return; } }
+const up = () => { if (drag && drag.k >= 0) buildPos(); if (drag && drag.aim) settle(drag.hist); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 function aimPoint(p) { const c = balls[0]; let x = p.x, y = p.y;
   const onFrame = x < -CUSH || x > L + CUSH || y < -CUSH || y > W + CUSH;
   if (onFrame) { const dm = CUSH + (RAIL - CUSH) / 2; // snap to 0.1 diamond on the diamond line
@@ -107,9 +109,33 @@ function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.roun
 function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NAMES[k]}</span><span style="display:flex;gap:4px"><input id="px${k}" inputmode="decimal" value="${dia(b.x / DL)}" aria-label="${NAMES[k]} 가로"><input id="py${k}" inputmode="decimal" value="${dia(b.y / DW)}" aria-label="${NAMES[k]} 세로"></span>`).join('');
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
+/* ---------- thickness (두께) ---------- */
+// x = signed lateral offset of the aim line from the 1st object ball centre (+ = aim passes on the left -> hits its left side)
+function thickInfo() { const c = balls[0], o = balls[st.tgt], dx = o.x - c.x, dy = o.y - c.y, dist = Math.hypot(dx, dy);
+  const al = Math.atan2(Math.sin(st.phi - Math.atan2(dy, dx)), Math.cos(st.phi - Math.atan2(dy, dx)));
+  const x = dist * Math.sin(al), front = Math.cos(al) > 0; return { x, dist, front, f: front && Math.abs(x) < 2 * R ? 1 - Math.abs(x) / (2 * R) : null }; }
+function setThick(x) { const c = balls[0], o = balls[st.tgt], dist = Math.hypot(o.x - c.x, o.y - c.y); x = Math.max(-2 * R * 1.3, Math.min(2 * R * 1.3, x));
+  if (Math.abs(x) >= dist) return; st.phi = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(x / dist); ui(); draw(); }
+function frac8(f) { const n = Math.round(f * 8); if (n === 8) return '거의 정면'; if (n === 0) return '거의 0'; const g = n % 4 === 0 ? 4 : n % 2 === 0 ? 2 : 1; return (n / g) + '/' + (8 / g); }
+const tc = $('thk'), tx = tc.getContext('2d');
+function drawThick() { const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2, r = h * 0.36, k = r / R; tx.clearRect(0, 0, w, h);
+  const ti = thickInfo(); tx.strokeStyle = 'rgba(255,255,255,.12)'; tx.lineWidth = 2; tx.beginPath(); tx.moveTo(cx, 4); tx.lineTo(cx, h - 4); tx.stroke();
+  const col = COLORS[st.tgt]; let g = tx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
+  if (ti.front) { const gx = cx - ti.x * k; tx.fillStyle = 'rgba(255,255,255,.55)'; tx.strokeStyle = '#fff'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.fill(); tx.stroke(); }
+  $('thkTxt').textContent = !ti.front ? '적구가 뒤쪽' : ti.f === null ? '안 맞음' : (Math.abs(ti.x) < 1e-4 ? '정면' : (ti.x > 0 ? '좌 ' : '우 ') + frac8(ti.f)) + ' · ' + Math.round((ti.f) * 100) + '%'; }
+let thkDrag = null;
+tc.addEventListener('pointerdown', e => { if (play) return; tc.setPointerCapture(e.pointerId); thkDrag = { x: e.clientX, hist: [] }; });
+tc.addEventListener('pointermove', e => { if (!thkDrag) return; const dx = e.clientX - thkDrag.x; thkDrag.x = e.clientX; const w = tc.getBoundingClientRect().width;
+  setThick(thickInfo().x - dx / w * 4 * R * 0.6); thkDrag.hist.push([performance.now(), st.phi]); if (thkDrag.hist.length > 40) thkDrag.hist.shift(); });
+const thkUp = () => { if (thkDrag) settle(thkDrag.hist); thkDrag = null; }; tc.addEventListener('pointerup', thkUp); tc.addEventListener('pointercancel', thkUp);
+document.querySelectorAll('.thkrow button').forEach(b => { let t1, t2; const go = () => { if (play) return; setThick(thickInfo().x - (+b.dataset.k) * 2 * R / 64); };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 60); }, 350); });
+  const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
+$('tgt').onclick = () => { st.tgt = st.tgt === 2 ? 1 : 2; $('tgt').textContent = st.tgt === 2 ? '빨강' : '주황'; ui(); };
+
 /* ---------- controls ---------- */
 const sc = $('spin'), sx = sc.getContext('2d');
-function drawSpin() { const s = 192, c = s / 2, r = 86; sx.clearRect(0, 0, s, s);
+function drawSpin() { const s = 168, c = s / 2, r = 78; sx.clearRect(0, 0, s, s);
   const g = sx.createRadialGradient(c - 24, c - 28, 8, c, c, r); g.addColorStop(0, '#fff'); g.addColorStop(1, '#b9c0c9'); sx.fillStyle = g; sx.beginPath(); sx.arc(c, c, r, 0, 7); sx.fill();
   sx.strokeStyle = 'rgba(20,30,45,.35)'; sx.lineWidth = 1.5; sx.beginPath(); sx.moveTo(c - r, c); sx.lineTo(c + r, c); sx.moveTo(c, c - r); sx.lineTo(c, c + r); sx.stroke();
   sx.strokeStyle = 'rgba(20,30,45,.18)'; for (const f of [0.2, 0.4]) { sx.beginPath(); sx.arc(c, c, r * f, 0, 7); sx.stroke(); }
@@ -123,18 +149,24 @@ sc.addEventListener('pointermove', e => { if (spinDrag) spinTo(e); }); sc.addEve
 $('spinReset').onclick = () => { st.a = st.b = 0; drawSpin(); ui(); };
 $('elev').oninput = e => { st.elev = +e.target.value; ui(); };
 $('pow').oninput = e => { st.power = e.target.value / 1000; ui(); draw(); };
-document.querySelectorAll('#t-shot .g4 button').forEach(b => { let t1, t2; const go = () => { if (play) return; st.phi += parseFloat(b.dataset.d) * Math.PI / 180; ui(); draw(); };
+document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go = () => { if (play) return; st.phi += parseFloat(b.dataset.d) * Math.PI / 180; ui(); draw(); };
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 50); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
 function spinLabel(a, b) { const s = []; if (b > 0.02) s.push('위 ' + Math.round(b * 100)); if (b < -0.02) s.push('아래 ' + Math.round(-b * 100)); if (a > 0.02) s.push('우 ' + Math.round(a * 100)); if (a < -0.02) s.push('좌 ' + Math.round(-a * 100)); return s.join(' · ') || '중앙'; }
-function ui() { $('spinTxt').textContent = spinLabel(st.a, st.b); $('elevTxt').textContent = st.elev + '°';
+function ui() { drawThick(); $('spinTxt').textContent = spinLabel(st.a, st.b); $('elevTxt').textContent = st.elev + '°';
   $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s';
   $('angTxt').textContent = (st.aimDia ? st.aimDia + ' · ' : '') + (((st.phi * 180 / Math.PI) % 360 + 360) % 360).toFixed(2) + '°';
+  $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }
 const toggle = (id, key, after) => { $(id).onclick = e => { st[key] = !st[key]; e.currentTarget.setAttribute('aria-pressed', st[key]); after && after(); draw(); }; };
 toggle('guideBtn', 'guide'); toggle('pathBtn', 'path'); toggle('ghostBtn', 'ghost'); toggle('numBtn', 'nums'); toggle('soundBtn', 'sound'); toggle('pSnap', 'snap');
 $('rspeed').onclick = e => { st.rspeed = { 1: 0.5, 0.5: 0.25, 0.25: 0.1, 0.1: 2, 2: 4, 4: 1 }[st.rspeed]; e.currentTarget.textContent = st.rspeed + 'x'; if (play) play.speed = st.rspeed; };
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b)); document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== 't-' + b.dataset.t); });
+const DT_TITLE = { place: '공 배치', phys: '물리값', info: '샷 기록' };
+function openDrawer(t) { $('drawer').hidden = false; $('dTitle').textContent = DT_TITLE[t]; document.querySelectorAll('#drawer .tab').forEach(x => x.hidden = x.id !== 't-' + t);
+  document.querySelectorAll('#menu button').forEach(x => x.setAttribute('aria-pressed', x.dataset.t === t)); }
+function closeDrawer() { $('drawer').hidden = true; document.querySelectorAll('#menu button').forEach(x => x.setAttribute('aria-pressed', false)); }
+document.querySelectorAll('#menu button').forEach(b => b.onclick = () => { if (!$('drawer').hidden && b.getAttribute('aria-pressed') === 'true') closeDrawer(); else openDrawer(b.dataset.t); });
+$('dClose').onclick = closeDrawer;
 function setEdit(on) { st.edit = on; $('pEdit').setAttribute('aria-pressed', on); $('pEdit').textContent = on ? '공 옮기기 끄기' : '공 옮기기 켜기'; ui(); draw(); }
 $('pEdit').onclick = () => setEdit(!st.edit);
 $('pBreak').onclick = () => { if (play) return; balls = breakBalls(); aimAt(2); buildPos(); draw(); };

@@ -9,7 +9,7 @@
   --f-body:"IBM Plex Sans KR",system-ui,sans-serif;--f-num:"Barlow Condensed","IBM Plex Sans KR",sans-serif;color-scheme:dark}
 html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);overflow:hidden;margin:0}
-#app{position:relative;height:100%;display:grid;grid-template-columns:1fr 232px}
+#app{position:relative;height:100%;display:grid;grid-template-columns:1fr 268px}
 #view{position:relative;min-width:0;min-height:0}
 #cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 #live{position:absolute;left:max(6px,env(safe-area-inset-left,0px));bottom:6px;font-size:12px;font-variant-numeric:tabular-nums;pointer-events:none}
@@ -19,7 +19,24 @@ body{background:var(--bg);color:var(--fg);font-family:var(--f-body);overflow:hid
 #verdict{font-weight:700}
 #verdict.good{color:var(--good);border-color:var(--good)} #verdict.bad{color:var(--bad)}
 #busy{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:var(--panel);padding:8px 14px;border-radius:8px;font-size:13px}
-#panel{background:#161c24;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+#panel{background:#161c24;border-left:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;gap:5px;min-height:0;padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px));overflow:hidden}
+#panel .lbl{display:inline-flex;align-items:center;gap:5px}
+#menu button{padding:5px 0;font-size:12px}
+.col{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.sm{padding:4px 6px;font-size:12px}
+.chipbtn{padding:1px 8px;border-radius:999px;font-size:11px}
+#spinWrap{gap:8px}
+#spin{width:84px;height:84px}
+.thkrow{display:grid;grid-template-columns:30px 1fr 30px;gap:4px;align-items:stretch}
+#thk{width:100%;height:46px;touch-action:none;border-radius:6px;background:#0f141b;border:1px solid var(--line);min-width:0}
+#angBtns button{padding:5px 0}
+#shotRow{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:4px}
+#shotRow button{padding:4px 0;font-size:11px;line-height:1.15}
+#shotRow #shoot{font-size:17px}
+#drawer{position:absolute;inset:0 268px 0 0;background:rgba(14,18,24,.97);z-index:6;display:flex;flex-direction:column;padding:8px max(12px,env(safe-area-inset-left,0px));min-height:0}
+#drawer .tab{padding:6px 0}
+.dhead{padding-bottom:6px;border-bottom:1px solid var(--line)}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px}
 #tabs{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--line);flex:none}
 #tabs button{border:0;border-radius:0;background:none;color:var(--muted);padding:9px 0;font-size:13px}
 #tabs button[aria-selected="true"]{color:var(--brass);box-shadow:inset 0 -2px 0 var(--brass)}
@@ -42,9 +59,9 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
 .note{font-size:11px;color:var(--muted);line-height:1.45;margin:0}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:12px} .kv b{text-align:right;font-family:var(--f-num);font-size:14px;font-weight:700}
 @media (orientation:portrait){
-  #app{grid-template-columns:1fr;grid-template-rows:1fr minmax(0,44%)}
-  #panel{border-left:0;border-top:1px solid var(--line)}
-  .tab{padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  #panel{border-left:0;border-top:1px solid var(--line);padding-left:max(10px,env(safe-area-inset-left,0px));padding-right:max(10px,env(safe-area-inset-right,0px))}
+  #drawer{inset:0 0 auto 0;bottom:auto;height:58%}
 }
 .field{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;align-items:center;font-size:12px}
 .field input{font:inherit;width:100%;background:#0f141b;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 6px;min-width:0}
@@ -65,41 +82,39 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
     <div id="busy" hidden>계산 중…</div>
   </div>
   <aside id="panel">
-    <div id="tabs" role="tablist">
-      <button type="button" role="tab" data-t="shot" aria-selected="true">샷</button>
-      <button type="button" role="tab" data-t="place">배치</button>
-      <button type="button" role="tab" data-t="phys">물리</button>
-      <button type="button" role="tab" data-t="info">기록</button>
-    </div>
-    <section class="tab" id="t-shot">
-      <div id="spinWrap"><canvas id="spin" width="192" height="192" aria-label="당점"></canvas>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span><button id="spinReset" type="button">중앙</button></div></div>
-      <div><div class="row"><span class="lbl">큐 기울기</span><span class="num" id="elevTxt"></span></div><input id="elev" type="range" min="0" max="75" step="1" value="5" aria-label="큐 기울기"></div>
-      <div><div class="row"><span class="lbl">힘 (큐 속도)</span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
-      <div><div class="row"><span class="lbl">조준</span><span class="num" id="angTxt"></span></div>
-        <div class="g4"><button type="button" data-d="-1">◀◀</button><button type="button" data-d="-0.05">◀</button><button type="button" data-d="0.05">▶</button><button type="button" data-d="1">▶▶</button></div></div>
-      <button id="shoot" type="button">샷</button>
-      <div class="g3"><button id="retry" type="button">같은 배치</button><button id="replay" type="button">리플레이</button><button id="rspeed" type="button">1x</button></div>
-      <p class="note">당구대를 누르면 그 지점으로 조준합니다. 나무 테두리(다이아몬드 줄)를 누르면 가장 가까운 0.1 다이아 지점으로 정확히 조준합니다.</p>
-    </section>
+    <div id="menu" class="g3"><button type="button" data-t="place">배치</button><button type="button" data-t="phys">물리</button><button type="button" data-t="info">기록</button></div>
+    <div id="spinWrap"><canvas id="spin" width="168" height="168" aria-label="당점"></canvas>
+      <div class="col"><div class="row"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span></div>
+        <div class="row"><span class="lbl">기울기</span><span class="num" id="elevTxt"></span></div>
+        <input id="elev" type="range" min="0" max="75" step="1" value="5" aria-label="큐 기울기">
+        <button id="spinReset" type="button" class="sm">당점 중앙</button></div></div>
+    <div><div class="row"><span class="lbl">힘</span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
+    <div id="thick"><div class="row"><span class="lbl">두께 · 1적구 <button type="button" id="tgt" class="sm chipbtn">빨강</button></span><span class="num" id="thkTxt"></span></div>
+      <div class="thkrow"><button type="button" class="sm" data-k="-1" aria-label="두께 왼쪽으로">‹</button><canvas id="thk" width="400" height="96" aria-label="두께 조절: 좌우로 끌기"></canvas><button type="button" class="sm" data-k="1" aria-label="두께 오른쪽으로">›</button></div></div>
+    <div><div class="row"><span class="lbl">각도</span><span class="num" id="angTxt"></span></div>
+      <div class="g4" id="angBtns"><button type="button" data-d="-1">◀◀</button><button type="button" data-d="-0.05">◀</button><button type="button" data-d="0.05">▶</button><button type="button" data-d="1">▶▶</button></div></div>
+    <div id="shotRow"><button id="shoot" type="button">샷</button><button id="retry" type="button">같은<br>배치</button><button id="replay" type="button">리플<br>레이</button><button id="rspeed" type="button">1x</button></div>
+  </aside>
+  <div id="drawer" hidden>
+    <div class="row dhead"><strong id="dTitle"></strong><button type="button" id="dClose" class="sm">닫기</button></div>
     <section class="tab" id="t-place" hidden>
       <div class="g2"><button type="button" id="pBreak">초구 배치</button><button type="button" id="pRandom">랜덤 배치</button></div>
       <button type="button" id="pEdit" aria-pressed="false">공 옮기기 켜기</button>
       <button type="button" id="pSnap" aria-pressed="true">0.25 다이아 단위로 맞춤</button>
       <div class="field" id="posFields"></div>
-      <p class="note">위치는 다이아몬드 단위입니다. 가로 0~8 (왼쪽 단쿠션 0), 세로 0~4 (아래 장쿠션 0).</p>
+      <p class="note">위치는 다이아몬드 단위입니다. 가로 0~8 (왼쪽 단쿠션 0), 세로 0~4 (아래 장쿠션 0). 공 옮기기를 켠 채로 닫으면 당구대에서 공을 끌어 옮길 수 있습니다.</p>
     </section>
     <section class="tab" id="t-phys" hidden>
       <div><span class="lbl">테이블 컨디션</span>
         <select id="cond" aria-label="테이블 컨디션"><option value="fast">빠른 대 (잘 구름)</option><option value="normal" selected>보통</option><option value="slow">무거운 대</option></select></div>
-      <div id="sliders" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="sliders" class="sgrid"></div>
       <button type="button" id="physReset">기본값으로</button>
     </section>
     <section class="tab" id="t-info" hidden>
       <div class="kv" id="shotInfo"><span>아직 친 샷이 없습니다</span></div>
       <table class="ev"><tbody id="evList"></tbody></table>
     </section>
-  </aside>
+  </div>
 </div>
 <script>
 /* =====================================================================
@@ -367,7 +382,7 @@ const SLIDERS = [
   ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { tgt: 2, phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', 0.71, 0.71 - 0.1524, D), BP.makeBall('o', 0.71, 0.71, D), BP.makeBall('r', 2.13, 0.71, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -447,9 +462,11 @@ function drawCue() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st
 let drag = null;
 cv.addEventListener('pointerdown', e => { if (play) return; cv.setPointerCapture(e.pointerId); const p = toWorld(e);
   if (st.edit) { let k = -1, best = 0.09; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
-  drag = { aim: true }; aimPoint(p); });
-cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) aimPoint(p); else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
-const up = () => { if (drag && drag.k >= 0) buildPos(); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  drag = { aim: true, hist: [] }; aimPoint(p); });
+cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) { aimPoint(p); drag.hist.push([performance.now(), st.phi]); if (drag.hist.length > 40) drag.hist.shift(); } else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
+// 손가락을 뗄 때 생기는 미세한 흔들림만 되돌림 (마지막 120ms 동안 0.3° 미만 변화일 때)
+function settle(hist) { const now = performance.now(); for (let i = hist.length - 1; i >= 0; i--) if (now - hist[i][0] >= 120) { if (Math.abs(st.phi - hist[i][1]) < 0.3 * Math.PI / 180) { st.phi = hist[i][1]; ui(); draw(); } return; } }
+const up = () => { if (drag && drag.k >= 0) buildPos(); if (drag && drag.aim) settle(drag.hist); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 function aimPoint(p) { const c = balls[0]; let x = p.x, y = p.y;
   const onFrame = x < -CUSH || x > L + CUSH || y < -CUSH || y > W + CUSH;
   if (onFrame) { const dm = CUSH + (RAIL - CUSH) / 2; // snap to 0.1 diamond on the diamond line
@@ -464,9 +481,33 @@ function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.roun
 function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NAMES[k]}</span><span style="display:flex;gap:4px"><input id="px${k}" inputmode="decimal" value="${dia(b.x / DL)}" aria-label="${NAMES[k]} 가로"><input id="py${k}" inputmode="decimal" value="${dia(b.y / DW)}" aria-label="${NAMES[k]} 세로"></span>`).join('');
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
+/* ---------- thickness (두께) ---------- */
+// x = signed lateral offset of the aim line from the 1st object ball centre (+ = aim passes on the left -> hits its left side)
+function thickInfo() { const c = balls[0], o = balls[st.tgt], dx = o.x - c.x, dy = o.y - c.y, dist = Math.hypot(dx, dy);
+  const al = Math.atan2(Math.sin(st.phi - Math.atan2(dy, dx)), Math.cos(st.phi - Math.atan2(dy, dx)));
+  const x = dist * Math.sin(al), front = Math.cos(al) > 0; return { x, dist, front, f: front && Math.abs(x) < 2 * R ? 1 - Math.abs(x) / (2 * R) : null }; }
+function setThick(x) { const c = balls[0], o = balls[st.tgt], dist = Math.hypot(o.x - c.x, o.y - c.y); x = Math.max(-2 * R * 1.3, Math.min(2 * R * 1.3, x));
+  if (Math.abs(x) >= dist) return; st.phi = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(x / dist); ui(); draw(); }
+function frac8(f) { const n = Math.round(f * 8); if (n === 8) return '거의 정면'; if (n === 0) return '거의 0'; const g = n % 4 === 0 ? 4 : n % 2 === 0 ? 2 : 1; return (n / g) + '/' + (8 / g); }
+const tc = $('thk'), tx = tc.getContext('2d');
+function drawThick() { const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2, r = h * 0.36, k = r / R; tx.clearRect(0, 0, w, h);
+  const ti = thickInfo(); tx.strokeStyle = 'rgba(255,255,255,.12)'; tx.lineWidth = 2; tx.beginPath(); tx.moveTo(cx, 4); tx.lineTo(cx, h - 4); tx.stroke();
+  const col = COLORS[st.tgt]; let g = tx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
+  if (ti.front) { const gx = cx - ti.x * k; tx.fillStyle = 'rgba(255,255,255,.55)'; tx.strokeStyle = '#fff'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.fill(); tx.stroke(); }
+  $('thkTxt').textContent = !ti.front ? '적구가 뒤쪽' : ti.f === null ? '안 맞음' : (Math.abs(ti.x) < 1e-4 ? '정면' : (ti.x > 0 ? '좌 ' : '우 ') + frac8(ti.f)) + ' · ' + Math.round((ti.f) * 100) + '%'; }
+let thkDrag = null;
+tc.addEventListener('pointerdown', e => { if (play) return; tc.setPointerCapture(e.pointerId); thkDrag = { x: e.clientX, hist: [] }; });
+tc.addEventListener('pointermove', e => { if (!thkDrag) return; const dx = e.clientX - thkDrag.x; thkDrag.x = e.clientX; const w = tc.getBoundingClientRect().width;
+  setThick(thickInfo().x - dx / w * 4 * R * 0.6); thkDrag.hist.push([performance.now(), st.phi]); if (thkDrag.hist.length > 40) thkDrag.hist.shift(); });
+const thkUp = () => { if (thkDrag) settle(thkDrag.hist); thkDrag = null; }; tc.addEventListener('pointerup', thkUp); tc.addEventListener('pointercancel', thkUp);
+document.querySelectorAll('.thkrow button').forEach(b => { let t1, t2; const go = () => { if (play) return; setThick(thickInfo().x - (+b.dataset.k) * 2 * R / 64); };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 60); }, 350); });
+  const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
+$('tgt').onclick = () => { st.tgt = st.tgt === 2 ? 1 : 2; $('tgt').textContent = st.tgt === 2 ? '빨강' : '주황'; ui(); };
+
 /* ---------- controls ---------- */
 const sc = $('spin'), sx = sc.getContext('2d');
-function drawSpin() { const s = 192, c = s / 2, r = 86; sx.clearRect(0, 0, s, s);
+function drawSpin() { const s = 168, c = s / 2, r = 78; sx.clearRect(0, 0, s, s);
   const g = sx.createRadialGradient(c - 24, c - 28, 8, c, c, r); g.addColorStop(0, '#fff'); g.addColorStop(1, '#b9c0c9'); sx.fillStyle = g; sx.beginPath(); sx.arc(c, c, r, 0, 7); sx.fill();
   sx.strokeStyle = 'rgba(20,30,45,.35)'; sx.lineWidth = 1.5; sx.beginPath(); sx.moveTo(c - r, c); sx.lineTo(c + r, c); sx.moveTo(c, c - r); sx.lineTo(c, c + r); sx.stroke();
   sx.strokeStyle = 'rgba(20,30,45,.18)'; for (const f of [0.2, 0.4]) { sx.beginPath(); sx.arc(c, c, r * f, 0, 7); sx.stroke(); }
@@ -480,18 +521,24 @@ sc.addEventListener('pointermove', e => { if (spinDrag) spinTo(e); }); sc.addEve
 $('spinReset').onclick = () => { st.a = st.b = 0; drawSpin(); ui(); };
 $('elev').oninput = e => { st.elev = +e.target.value; ui(); };
 $('pow').oninput = e => { st.power = e.target.value / 1000; ui(); draw(); };
-document.querySelectorAll('#t-shot .g4 button').forEach(b => { let t1, t2; const go = () => { if (play) return; st.phi += parseFloat(b.dataset.d) * Math.PI / 180; ui(); draw(); };
+document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go = () => { if (play) return; st.phi += parseFloat(b.dataset.d) * Math.PI / 180; ui(); draw(); };
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 50); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
 function spinLabel(a, b) { const s = []; if (b > 0.02) s.push('위 ' + Math.round(b * 100)); if (b < -0.02) s.push('아래 ' + Math.round(-b * 100)); if (a > 0.02) s.push('우 ' + Math.round(a * 100)); if (a < -0.02) s.push('좌 ' + Math.round(-a * 100)); return s.join(' · ') || '중앙'; }
-function ui() { $('spinTxt').textContent = spinLabel(st.a, st.b); $('elevTxt').textContent = st.elev + '°';
+function ui() { drawThick(); $('spinTxt').textContent = spinLabel(st.a, st.b); $('elevTxt').textContent = st.elev + '°';
   $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s';
   $('angTxt').textContent = (st.aimDia ? st.aimDia + ' · ' : '') + (((st.phi * 180 / Math.PI) % 360 + 360) % 360).toFixed(2) + '°';
+  $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }
 const toggle = (id, key, after) => { $(id).onclick = e => { st[key] = !st[key]; e.currentTarget.setAttribute('aria-pressed', st[key]); after && after(); draw(); }; };
 toggle('guideBtn', 'guide'); toggle('pathBtn', 'path'); toggle('ghostBtn', 'ghost'); toggle('numBtn', 'nums'); toggle('soundBtn', 'sound'); toggle('pSnap', 'snap');
 $('rspeed').onclick = e => { st.rspeed = { 1: 0.5, 0.5: 0.25, 0.25: 0.1, 0.1: 2, 2: 4, 4: 1 }[st.rspeed]; e.currentTarget.textContent = st.rspeed + 'x'; if (play) play.speed = st.rspeed; };
-document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b)); document.querySelectorAll('.tab').forEach(t => t.hidden = t.id !== 't-' + b.dataset.t); });
+const DT_TITLE = { place: '공 배치', phys: '물리값', info: '샷 기록' };
+function openDrawer(t) { $('drawer').hidden = false; $('dTitle').textContent = DT_TITLE[t]; document.querySelectorAll('#drawer .tab').forEach(x => x.hidden = x.id !== 't-' + t);
+  document.querySelectorAll('#menu button').forEach(x => x.setAttribute('aria-pressed', x.dataset.t === t)); }
+function closeDrawer() { $('drawer').hidden = true; document.querySelectorAll('#menu button').forEach(x => x.setAttribute('aria-pressed', false)); }
+document.querySelectorAll('#menu button').forEach(b => b.onclick = () => { if (!$('drawer').hidden && b.getAttribute('aria-pressed') === 'true') closeDrawer(); else openDrawer(b.dataset.t); });
+$('dClose').onclick = closeDrawer;
 function setEdit(on) { st.edit = on; $('pEdit').setAttribute('aria-pressed', on); $('pEdit').textContent = on ? '공 옮기기 끄기' : '공 옮기기 켜기'; ui(); draw(); }
 $('pEdit').onclick = () => setEdit(!st.edit);
 $('pBreak').onclick = () => { if (play) return; balls = breakBalls(); aimAt(2); buildPos(); draw(); };

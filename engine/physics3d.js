@@ -23,6 +23,9 @@ const BilliardPhysics = (() => {
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact
     eTable: 0.45,         // ball-slate bounce restitution (landing)
     cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
+    // 스트로크: 유효 큐 질량(그립·손목이 함께 미는 정도), 팁 반발, 현장 체감 회전 보정
+    strokes: { push: { mass: 0.66, tipE: 0.80, spin: -0.08 }, normal: { mass: 0.52, tipE: 0.78, spin: 0 }, snap: { mass: 0.44, tipE: 0.72, spin: 0.14 } },
+    strokeFeel: 0.5,      // 0 = 순수 물리, 1 = 현장 체감 보정 최대
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -53,12 +56,15 @@ const BilliardPhysics = (() => {
     const p = [0, 1, 2].map(k => a*R*rgt[k] + b*R*up[k] - c*d[k]);
     const pxd = cross(p, d);
     const invMeff = 1/m + dot(pxd, pxd) / I;
-    let J = (1 + P.cueTipE) * shot.V / (1/P.cueMass + invMeff);
+    const S = (P.strokes && P.strokes[shot.stroke || 'normal']) || { mass: P.cueMass, tipE: P.cueTipE, spin: 0 };
+    const cueM = shot.stroke && shot.stroke !== 'normal' ? S.mass : P.cueMass, tipE = shot.stroke && shot.stroke !== 'normal' ? S.tipE : P.cueTipE;
+    let J = (1 + tipE) * shot.V / (1/cueM + invMeff);
     if (miscue) J *= 0.35;
     const Jv = d.map(k => k * J);
     ball.vx += Jv[0]/m; ball.vy += Jv[1]/m; ball.vz += Jv[2]/m;
     const dw = cross(p, Jv);
-    ball.wx += dw[0]/I; ball.wy += dw[1]/I; ball.wz += dw[2]/I;
+    const sk = 1 + (S.spin || 0) * (P.strokeFeel || 0);   // 체감 보정: 끊어치기는 회전이 더 살아 있고 밀어치기는 덜함
+    ball.wx += sk * dw[0]/I; ball.wy += sk * dw[1]/I; ball.wz += sk * dw[2]/I;
     // squirt: cue ball deflects away from the side of english
     const aa = Math.max(-0.95, Math.min(0.95, a));
     const sq = Math.atan(2.5 * Math.abs(aa) * Math.sqrt(1 - aa*aa) / (1 + m / P.cueEndMass + 2.5 * (1 - aa*aa))) * Math.sign(aa);

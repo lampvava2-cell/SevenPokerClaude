@@ -7,10 +7,10 @@ const COND = { fast: { muR: 0.0065, muS: 0.18, spinDecel: 8, eCushion: 0.88 }, n
 const SLIDERS = [
   ['muR', '구름 저항', 0.004, 0.016, 0.0005], ['muS', '미끄럼 마찰', 0.1, 0.35, 0.01], ['spinDecel', '좌우회전 감쇠 (rad/s²)', 2, 25, 0.5],
   ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.035, 0.044, 0.0005, 1000],
-  ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
+  ['strokeFeel', '스트로크 체감 보정 (0=순수 물리)', 0, 1, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', L / 4, W / 2 - 0.1524, D), BP.makeBall('o', L / 4, W / 2, D), BP.makeBall('r', L * 3 / 4, W / 2, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -115,10 +115,10 @@ function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NA
 /* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
 // 수구만 실제 물리로 굴려서 첫 충돌(공 또는 쿠션)까지의 진짜 경로를 구함: 스쿼트 + 스워브(휘어짐) 모두 반영
 let traceCache = null;
-function realTrace() { const key = [st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
+function realTrace() { const key = [st.stroke, params.strokeFeel, st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
   if (traceCache && traceCache.key === key) return traceCache;
   const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
-  BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180 });
+  BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke });
   const pts = [[b.x, b.y]], lim = R * Math.sqrt(1 - Math.pow((params.cushionH - R) / R, 2)); let hit = null, n = 0;
   while (n++ < 80000) { BP._int.cloth(params, b, params.dt); b.x += b.vx * params.dt; b.y += b.vy * params.dt; if (b.air) { b.z += b.vz * params.dt; if (b.z <= R) { b.z = R; b.vz = 0; b.air = false; } }
     if (n % 40 === 0) pts.push([b.x, b.y]);
@@ -180,6 +180,7 @@ sc.addEventListener('pointermove', e => { if (spinDrag) spinTo(e); }); sc.addEve
 $('spinReset').onclick = () => { st.a = st.b = 0; drawSpin(); ui(); };
 $('elev').oninput = e => { st.elev = +e.target.value; ui(); };
 $('pow').oninput = e => { st.power = e.target.value / 1000; ui(); draw(); };
+document.querySelectorAll('#strokeSeg button').forEach(b => b.onclick = () => { st.stroke = b.dataset.s; document.querySelectorAll('#strokeSeg button').forEach(x => x.setAttribute('aria-pressed', x === b)); ui(); draw(); });
 document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go = () => { if (play) return; st.phi += parseFloat(b.dataset.d) * Math.PI / 180; ui(); draw(); };
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 50); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
@@ -221,7 +222,7 @@ function snd(kind, speed) { if (!st.sound) return; try { actx = actx || new (win
 /* ---------- shot / playback ---------- */
 function shoot() { if (play || st.edit) return; snd('cue', 0);
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
-  const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180 };
+  const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
   $('busy').hidden = false;
   setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.aimDia = st.aimDia; $('busy').hidden = true;
     if (last) prev = last; last = res; startPlay(res); snd('cue', shot.V); }, 20); }
@@ -256,7 +257,7 @@ function showResult(res) { const j = judge(res), v = $('verdict');
   v.className = 'chip ' + (j.ok ? 'good' : 'bad');
   const s = res.shot, cueV = Math.hypot(res.frames[1][0] - res.frames[0][0], res.frames[1][1] - res.frames[0][1]) * params.recordHz;
   const cush = res.events.filter(e => e.type === 'cushion' && e.i === 0).slice(0, 6).map((e, k) => `${k + 1}쿠션 ${RAILNAME[e.side].replace('쿠션', '')} ${railPoint(res, e)}`);
-  $('shotInfo').innerHTML = [['조준', res.aimDia || '-'], ['큐 속도', s.V.toFixed(2) + ' m/s'], ['수구 초속', cueV.toFixed(2) + ' m/s'], ['당점', spinLabel(s.a, s.b)], ['큐 기울기', Math.round(s.elev * 180 / Math.PI) + '°'],
+  $('shotInfo').innerHTML = [['조준', res.aimDia || '-'], ['큐 속도', s.V.toFixed(2) + ' m/s'], ['수구 초속', cueV.toFixed(2) + ' m/s'], ['스트로크', { push: '밀어치기', normal: '보통', snap: '끊어치기' }[s.stroke || 'normal']], ['당점', spinLabel(s.a, s.b)], ['큐 기울기', Math.round(s.elev * 180 / Math.PI) + '°'],
     ['스쿼트', res.strike.squirtDeg.toFixed(2) + '°' + (res.strike.miscue ? ' · 미스큐!' : '')], ['진행 시간', res.duration.toFixed(1) + ' 초'], ['계산 시간', Math.round(res.calcMs) + ' ms']].map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('')
     + (cush.length ? `<span>수구 쿠션 지점</span><b style="font-size:12px;line-height:1.5">${cush.join('<br>')}</b>` : '');
   $('evList').innerHTML = res.events.filter(e => e.type !== 'land' || e.speed > 0.3).slice(0, 60).map(e => `<tr><td>${e.t.toFixed(2)}s</td><td>${e.type === 'ball' ? NAMES[e.i] + '↔' + NAMES[e.j] : e.type === 'cushion' ? NAMES[e.i] + ' → ' + RAILNAME[e.side] + ' ' + railPoint(res, e) : NAMES[e.i] + ' 착지'}</td><td>${e.speed.toFixed(2)} m/s</td></tr>`).join(''); }

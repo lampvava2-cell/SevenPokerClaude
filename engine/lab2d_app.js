@@ -43,7 +43,7 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
   for (let i = 0; i <= 8; i++) { diamond(i * DL, -dm); diamond(i * DL, W + dm); } for (let j = 0; j <= 4; j++) { diamond(-dm, j * DW); diamond(L + dm, j * DW); }
   if (st.nums) { for (let i = 0; i <= 8; i++) { label(String(i), i * DL, W + RAIL + 0.035); label(String(i), i * DL, -RAIL - 0.04); } for (let j = 0; j <= 4; j++) { label(String(j), -RAIL - 0.04, j * DW); label(String(j), L + RAIL + 0.04, j * DW); } }
   ctx.fillStyle = 'rgba(255,255,255,.3)'; [[0.71, 0.71], [2.13, 0.71], [1.42, 0.71]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 0.005, 0, 7); ctx.fill(); });
-  if (st.ghost && prev && !play) drawPaths(prev, prev.frames.length - 1, true);
+  if (st.path && st.ghost && prev && !play) drawPaths(prev, prev.frames.length - 1, true);
   if (st.path && last) drawPaths(last, play && play.res === last ? Math.floor(Math.max(0, play.t) * params.recordHz) : last.frames.length - 1, false);
   if (!play && st.guide) drawGuide();
   const bs = pos || balls.map(b => [b.x, b.y, b.z, 0]);
@@ -184,7 +184,7 @@ function ui() { drawThick(); $('spinTxt').textContent = spinLabel(st.a, st.b); $
   $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }
 const toggle = (id, key, after) => { $(id).onclick = e => { st[key] = !st[key]; e.currentTarget.setAttribute('aria-pressed', st[key]); after && after(); draw(); }; };
-toggle('guideBtn', 'guide'); toggle('pathBtn', 'path'); toggle('ghostBtn', 'ghost'); toggle('numBtn', 'nums'); toggle('soundBtn', 'sound'); toggle('pSnap', 'snap');
+toggle('guideBtn', 'guide'); toggle('pathBtn', 'path', () => { $('pathBtn').textContent = st.path ? '궤적 켜짐' : '궤적 꺼짐'; $('ghostBtn').disabled = !st.path; }); toggle('ghostBtn', 'ghost'); toggle('numBtn', 'nums'); toggle('soundBtn', 'sound'); toggle('pSnap', 'snap');
 $('rspeed').onclick = e => { st.rspeed = { 1: 0.5, 0.5: 0.25, 0.25: 0.1, 0.1: 2, 2: 4, 4: 1 }[st.rspeed]; e.currentTarget.textContent = st.rspeed + 'x'; if (play) play.speed = st.rspeed; };
 const DT_TITLE = { place: '공 배치', phys: '물리값', info: '샷 기록' };
 function openDrawer(t) { $('drawer').hidden = false; $('dTitle').textContent = DT_TITLE[t]; document.querySelectorAll('#drawer .tab').forEach(x => x.hidden = x.id !== 't-' + t);

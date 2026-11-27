@@ -1,0 +1,49 @@
+<div id="app">
+  <div id="view">
+    <canvas id="gl" aria-label="3D 당구대"></canvas>
+    <div id="topbar">
+      <button class="chip" id="camBtn" type="button">시점: 조준</button>
+      <button class="chip" id="pathBtn" type="button" aria-pressed="true">궤적</button>
+      <button class="chip" id="guideBtn" type="button" aria-pressed="true">가이드</button>
+      <button class="chip" id="soundBtn" type="button" aria-pressed="true">소리</button>
+      <span class="chip" id="verdict">샷을 쳐보세요</span>
+    </div>
+    <div id="busy" hidden>계산 중…</div>
+  </div>
+  <aside id="panel">
+    <div id="tabs" role="tablist">
+      <button type="button" role="tab" data-t="shot" aria-selected="true">샷</button>
+      <button type="button" role="tab" data-t="place">배치</button>
+      <button type="button" role="tab" data-t="phys">물리</button>
+      <button type="button" role="tab" data-t="info">기록</button>
+    </div>
+    <section class="tab" id="t-shot">
+      <div id="spinWrap"><canvas id="spin" width="192" height="192" aria-label="당점"></canvas>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span><button id="spinReset" type="button">중앙</button></div></div>
+      <div><div class="row"><span class="lbl">큐 기울기</span><span class="num" id="elevTxt"></span></div><input id="elev" type="range" min="0" max="75" step="1" value="5" aria-label="큐 기울기"></div>
+      <div><div class="row"><span class="lbl">힘 (큐 속도)</span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
+      <div><div class="row"><span class="lbl">조준 미세조정</span><span class="num" id="angTxt"></span></div>
+        <div class="g4"><button type="button" data-d="-1">◀◀</button><button type="button" data-d="-0.05">◀</button><button type="button" data-d="0.05">▶</button><button type="button" data-d="1">▶▶</button></div></div>
+      <button id="shoot" type="button">샷</button>
+      <div class="g3"><button id="retry" type="button">같은 배치</button><button id="replay" type="button">리플레이</button><button id="rspeed" type="button">1x</button></div>
+      <p class="note">조준 시점: 화면을 좌우로 끌면 조준, 위아래로 끌면 시선 높이, 두 손가락으로 확대. 위에서 보기: 화면을 누른 곳으로 조준.</p>
+    </section>
+    <section class="tab" id="t-place" hidden>
+      <div class="g2"><button type="button" id="pBreak">초구 배치</button><button type="button" id="pRandom">랜덤 배치</button></div>
+      <button type="button" id="pEdit" aria-pressed="false">공 옮기기 켜기</button>
+      <p class="note">공 옮기기를 켜면 위에서 보기로 바뀝니다. 공을 손가락으로 끌어 원하는 곳에 놓으세요. 흰 공이 수구입니다.</p>
+    </section>
+    <section class="tab" id="t-phys" hidden>
+      <div><span class="lbl">테이블 컨디션</span>
+        <select id="cond" aria-label="테이블 컨디션"><option value="fast">빠른 대 (잘 구름)</option><option value="normal" selected>보통</option><option value="slow">무거운 대</option></select></div>
+      <div id="sliders" style="display:flex;flex-direction:column;gap:6px"></div>
+      <button type="button" id="physReset">기본값으로</button>
+    </section>
+    <section class="tab" id="t-info" hidden>
+      <div class="kv" id="shotInfo"><span>아직 친 샷이 없습니다</span></div>
+      <table class="ev"><tbody id="evList"></tbody></table>
+    </section>
+  </aside>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>

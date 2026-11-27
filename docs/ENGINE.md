@@ -47,3 +47,10 @@
 3. 3D 렌더링·카메라·소리
 4. 스트로크 입력·큐 기울기
 5. 제작자 반복 시험 → 튜닝 → 완성도 확보 후 멀티·재미요소
+
+## 진행 기록
+### 1단계 완료 (물리 코어 + 3D 실험실)
+- `engine/physics3d.js`: 3D 물리 코어 (아케이드 보정 전부 제거)
+- `engine/validate.js`: 실제 기준 비교 시험 → 결과 `engine/validation.txt` (전 항목 기준 범위 내)
+- `engine/lab_*.html/js` + `engine/build.sh` → `engine/index.html` (Three.js 3D 실험실)
+- 미해결/튜닝 후보: 역회전 쿠션 효과 크기, 구르는 공의 쿠션 후 휘어짐 정도, 다이아몬드 시스템 정합성

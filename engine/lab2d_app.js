@@ -10,7 +10,7 @@ const SLIDERS = [
   ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { aimMode: 'back', stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { aimMode: 'front', stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', L / 4, W / 2 - 0.1524, D), BP.makeBall('o', L / 4, W / 2, D), BP.makeBall('r', L * 3 / 4, W / 2, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -238,15 +238,38 @@ function buildSliders() { $('sliders').innerHTML = SLIDERS.map(([k, label, mn, m
 $('cond').onchange = e => { Object.assign(params, COND[e.target.value]); buildSliders(); };
 $('physReset').onclick = () => { params = Object.assign({}, D); $('cond').value = 'normal'; buildSliders(); drawSpin(); };
 
-/* ---------- sound ---------- */
-let actx = null;
-function snd(kind, speed) { if (!st.sound) return; try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-  const t0 = actx.currentTime, vol = Math.min(1, 0.08 + speed / 5), len = kind === 'cushion' ? 0.09 : kind === 'cue' ? 0.05 : 0.035;
-  const buf = actx.createBuffer(1, Math.ceil(actx.sampleRate * len), actx.sampleRate), d = buf.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (d.length * (kind === 'cushion' ? 0.25 : 0.12)));
-  const src = actx.createBufferSource(); src.buffer = buf; const f = actx.createBiquadFilter(); f.type = kind === 'cushion' ? 'lowpass' : 'bandpass';
-  f.frequency.value = kind === 'ball' ? 3200 : kind === 'cue' ? 1500 : kind === 'land' ? 900 : 260; f.Q.value = kind === 'ball' ? 6 : 2;
-  const g = actx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + len); src.connect(f).connect(g).connect(actx.destination); src.start(t0); }
+/* ---------- sound: 합성 음향 (페놀 수지 공 '딱', 쿠션 '퉁', 가죽 팁 '톡', 천 위 구름 소리, 실내 잔향) ---------- */
+const AU = { ctx: null };
+function audioInit() { if (AU.ctx) return AU.ctx; let C; try { C = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; }
+  const comp = C.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.002; comp.release.value = 0.12;
+  const master = C.createGain(); master.gain.value = 0.9; master.connect(comp).connect(C.destination);
+  // room reverb: generated impulse response (당구장 실내 느낌)
+  const len = Math.floor(C.sampleRate * 0.7), ir = C.createBuffer(2, len, C.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) { const t = i / len; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, 3.2) * (i < 600 ? i / 600 : 1); } }
+  const verb = C.createConvolver(); verb.buffer = ir; const wet = C.createGain(); wet.gain.value = 0.16; verb.connect(wet).connect(master);
+  const dry = C.createGain(); dry.connect(master); const send = C.createGain(); send.connect(verb);
+  const noise = C.createBuffer(1, C.sampleRate, C.sampleRate), nd = noise.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  // rolling rumble (continuous, gain follows ball speed)
+  const rs = C.createBufferSource(); rs.buffer = noise; rs.loop = true; const rf = C.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 380; rf.Q.value = 0.7;
+  const rf2 = C.createBiquadFilter(); rf2.type = 'highpass'; rf2.frequency.value = 60; const rg = C.createGain(); rg.gain.value = 0; rs.connect(rf).connect(rf2).connect(rg).connect(dry); rs.start();
+  Object.assign(AU, { ctx: C, dry, send, noise, roll: rg }); return C; }
+function out(node, wetAmt) { node.connect(AU.dry); if (wetAmt) { const g = AU.ctx.createGain(); g.gain.value = wetAmt; node.connect(g).connect(AU.send); } }
+function tone(t0, f, dur, amp, wet, fEnd) { const C = AU.ctx, o = C.createOscillator(), g = C.createGain(); o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur);
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(amp, t0 + 0.0008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); out(g, wet); o.start(t0); o.stop(t0 + dur + 0.02); }
+function burst(t0, dur, amp, type, freq, q, wet) { const C = AU.ctx, s = C.createBufferSource(); s.buffer = AU.noise; s.playbackRate.value = 0.8 + Math.random() * 0.4;
+  const f = C.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q; const g = C.createGain(); g.gain.setValueAtTime(amp, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  s.connect(f).connect(g); out(g, wet); s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.02); }
+function snd(kind, speed) { if (!st.sound) return; const C = audioInit(); if (!C) return; if (C.state === 'suspended') C.resume();
+  const t0 = C.currentTime + 0.005, v = Math.min(1, Math.pow(Math.max(0.02, speed) / 4, 0.75)), j = 1 + (Math.random() - 0.5) * 0.06;
+  if (kind === 'ball') { // 공-공: 날카로운 접촉음 + 공 자체 공진 (2.9k / 4.8k / 1.3k)
+    burst(t0, 0.006, 0.55 * v, 'highpass', 2500, 0.7, 0.3);
+    tone(t0, 2950 * j, 0.045, 0.32 * v, 0.35); tone(t0, 4800 * j, 0.028, 0.16 * v, 0.3); tone(t0, 1300 * j, 0.06, 0.12 * v, 0.4);
+  } else if (kind === 'cushion') { // 쿠션: 고무가 받는 둔탁한 저음 + 레일 나무 울림
+    tone(t0, 150 * j, 0.11, 0.55 * v, 0.25, 85); burst(t0, 0.05, 0.35 * v, 'lowpass', 520, 0.8, 0.2); tone(t0 + 0.002, 410 * j, 0.07, 0.10 * v, 0.4);
+  } else if (kind === 'cue') { // 가죽 팁 '톡' + 큐 나무 공진
+    burst(t0, 0.012, 0.45 * v, 'bandpass', 1700, 1.4, 0.25); tone(t0, 760 * j, 0.05, 0.22 * v, 0.3); tone(t0, 1520 * j, 0.025, 0.09 * v, 0.3);
+  } else if (kind === 'land') { tone(t0, 95, 0.09, 0.4 * v, 0.2, 60); burst(t0, 0.03, 0.2 * v, 'lowpass', 300, 0.7, 0.1); } }
+function rollSound(sum) { if (!AU.ctx || !st.sound) return; AU.roll.gain.setTargetAtTime(Math.min(0.22, sum * 0.045), AU.ctx.currentTime, 0.05); }
 
 /* ---------- shot / playback ---------- */
 function shoot() { if (play || st.edit) return; snd('cue', 0);
@@ -271,9 +294,10 @@ function stepPlay(dt) { const p = play, res = p.res; p.t += dt * p.speed;
   const hz = params.recordHz, fi = Math.min(res.frames.length - 1, p.t * hz), a = Math.floor(fi), b = Math.min(res.frames.length - 1, a + 1), u = fi - a, fa = res.frames[a], fb = res.frames[b];
   const pos = [0, 1, 2].map(k => { const o = k * 8; return [fa[o] + (fb[o] - fa[o]) * u, fa[o + 1] + (fb[o + 1] - fa[o + 1]) * u, fa[o + 2] + (fb[o + 2] - fa[o + 2]) * u, fa[o + 7]]; });
   while (p.evi < res.events.length && res.events[p.evi].t <= p.t) { const e = res.events[p.evi++]; snd(e.type, e.speed); }
+  { let sum = 0; for (let k = 0; k < 3; k++) { const o = k * 8; if (fa[o + 7] < 0.5) sum += Math.hypot(fb[o] - fa[o], fb[o + 1] - fa[o + 1]) * hz; } rollSound(sum * Math.min(1, p.speed)); }
   $('live').textContent = liveInfo(res, Math.min(p.t, res.duration));
   draw(pos);
-  if (p.t >= res.duration) { play = null; balls = res.balls.map(b => Object.assign({}, b, { q: b.q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0, still: true, air: false })); $('live').hidden = true; showResult(res); buildPos(); ui(); draw(); } }
+  if (p.t >= res.duration) { rollSound(0); play = null; balls = res.balls.map(b => Object.assign({}, b, { q: b.q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0, still: true, air: false })); $('live').hidden = true; showResult(res); buildPos(); ui(); draw(); } }
 
 /* ---------- result ---------- */
 function judge(res) { let cush = 0, hit = [], first = null, at2 = null;

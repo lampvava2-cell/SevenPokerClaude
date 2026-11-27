@@ -21,7 +21,7 @@ const BilliardPhysics = (() => {
     muCushion: 0.16,      // ball-cushion friction
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact
     eTable: 0.45,         // ball-slate bounce restitution (landing)
-    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.008, miscue: 0.62,
+    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 

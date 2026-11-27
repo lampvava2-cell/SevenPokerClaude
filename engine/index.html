@@ -140,7 +140,7 @@ const BilliardPhysics = (() => {
     muCushion: 0.16,      // ball-cushion friction
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact
     eTable: 0.45,         // ball-slate bounce restitution (landing)
-    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.008, miscue: 0.62,
+    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -445,7 +445,10 @@ function cast(px, py, dx, dy) { let best = Infinity, hit = null;
   const lim = R * Math.sqrt(1 - Math.pow((params.cushionH - R) / R, 2));
   [[dx < 0, (lim - px) / dx, 'x'], [dx > 0, (L - lim - px) / dx, 'x'], [dy < 0, (lim - py) / dy, 'y'], [dy > 0, (W - lim - py) / dy, 'y']].forEach(([ok, t, ax]) => { if (ok && t > 1e-6 && t < best) { best = t; hit = { type: 'rail', ax }; } });
   return { t: best, hit }; }
-function drawGuide() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st.phi), r = cast(c.x, c.y, dx, dy), ex = c.x + dx * r.t, ey = c.y + dy * r.t;
+function drawGuide() { const c = balls[0];
+  { const rp = realPhi(); if (Math.abs(rp - st.phi) > 1e-4) { const ux = Math.cos(rp), uy = Math.sin(rp), rr2 = cast(c.x, c.y, ux, uy), qx = c.x + ux * rr2.t, qy = c.y + uy * rr2.t;
+    ctx.strokeStyle = 'rgba(214,165,74,.85)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.008, 0.01]); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(qx, qy); ctx.stroke(); ctx.beginPath(); ctx.arc(qx, qy, R, 0, 7); ctx.stroke(); ctx.setLineDash([]); } }
+  const dx = Math.cos(st.phi), dy = Math.sin(st.phi), r = cast(c.x, c.y, dx, dy), ex = c.x + dx * r.t, ey = c.y + dy * r.t;
   ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.018, 0.012]); ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(ex, ey); ctx.stroke();
   ctx.beginPath(); ctx.arc(ex, ey, R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
   // where the aim line meets the diamond line on the frame
@@ -481,10 +484,14 @@ function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.roun
 function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NAMES[k]}</span><span style="display:flex;gap:4px"><input id="px${k}" inputmode="decimal" value="${dia(b.x / DL)}" aria-label="${NAMES[k]} 가로"><input id="py${k}" inputmode="decimal" value="${dia(b.y / DW)}" aria-label="${NAMES[k]} 세로"></span>`).join('');
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
+/* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
+function realPhi() { const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
+  BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180 }); return Math.atan2(b.vy, b.vx); }
+
 /* ---------- thickness (두께) ---------- */
 // x = signed lateral offset of the aim line from the 1st object ball centre (+ = aim passes on the left -> hits its left side)
-function thickInfo() { const c = balls[0], o = balls[st.tgt], dx = o.x - c.x, dy = o.y - c.y, dist = Math.hypot(dx, dy);
-  const al = Math.atan2(Math.sin(st.phi - Math.atan2(dy, dx)), Math.cos(st.phi - Math.atan2(dy, dx)));
+function thickInfo(phi = st.phi) { const c = balls[0], o = balls[st.tgt], dx = o.x - c.x, dy = o.y - c.y, dist = Math.hypot(dx, dy);
+  const al = Math.atan2(Math.sin(phi - Math.atan2(dy, dx)), Math.cos(phi - Math.atan2(dy, dx)));
   const x = dist * Math.sin(al), front = Math.cos(al) > 0; return { x, dist, front, f: front && Math.abs(x) < 2 * R ? 1 - Math.abs(x) / (2 * R) : null }; }
 function setThick(x) { const c = balls[0], o = balls[st.tgt], dist = Math.hypot(o.x - c.x, o.y - c.y); x = Math.max(-2 * R * 1.3, Math.min(2 * R * 1.3, x));
   if (Math.abs(x) >= dist) return; st.phi = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(x / dist); ui(); draw(); }
@@ -494,7 +501,10 @@ function drawThick() { const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2
   const ti = thickInfo(); tx.strokeStyle = 'rgba(255,255,255,.12)'; tx.lineWidth = 2; tx.beginPath(); tx.moveTo(cx, 4); tx.lineTo(cx, h - 4); tx.stroke();
   const col = COLORS[st.tgt]; let g = tx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
   if (ti.front) { const gx = cx - ti.x * k; tx.fillStyle = 'rgba(255,255,255,.55)'; tx.strokeStyle = '#fff'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.fill(); tx.stroke(); }
-  $('thkTxt').textContent = !ti.front ? '적구가 뒤쪽' : ti.f === null ? '안 맞음' : (Math.abs(ti.x) < 1e-4 ? '정면' : (ti.x > 0 ? '좌 ' : '우 ') + frac8(ti.f)) + ' · ' + Math.round((ti.f) * 100) + '%'; }
+  const lbl = t => !t.front ? '적구가 뒤쪽' : t.f === null ? '안 맞음' : (Math.abs(t.x) < 1e-4 ? '정면' : (t.x > 0 ? '좌 ' : '우 ') + frac8(t.f)) + ' ' + Math.round(t.f * 100) + '%';
+  const rp = realPhi(), tr = thickInfo(rp);
+  if (tr.front) { const gx = cx - tr.x * k; tx.setLineDash([5, 4]); tx.strokeStyle = '#d6a54a'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.stroke(); tx.setLineDash([]); }
+  $('thkTxt').textContent = lbl(ti) + (Math.abs(rp - st.phi) > 1e-4 ? ' → 실제 ' + lbl(tr) : ''); }
 let thkDrag = null;
 tc.addEventListener('pointerdown', e => { if (play) return; tc.setPointerCapture(e.pointerId); thkDrag = { x: e.clientX, hist: [] }; });
 tc.addEventListener('pointermove', e => { if (!thkDrag) return; const dx = e.clientX - thkDrag.x; thkDrag.x = e.clientX; const w = tc.getBoundingClientRect().width;

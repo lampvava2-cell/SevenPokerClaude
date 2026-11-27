@@ -256,6 +256,11 @@ function audioInit() { if (AU.ctx) return AU.ctx; let C; try { C = new (window.A
   // 녹음된 공-공 충돌음 디코딩
   if (typeof CLACK_WAV !== 'undefined') CLACK_WAV.forEach(u => { try { const bin = atob(u.split(',')[1]), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
     C.decodeAudioData(buf.buffer).then(b => AU.clacks.push(b)).catch(() => {}); } catch (e) {} });
+  const dec = (u, fn) => { try { const bin = atob(u.split(',')[1]), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i); C.decodeAudioData(buf.buffer).then(fn).catch(() => {}); } catch (e) {} };
+  if (typeof CUSHION_WAV !== 'undefined') dec(CUSHION_WAV, b => AU.cushion = b);
+  if (typeof ROLL_WAV !== 'undefined') dec(ROLL_WAV, b => { // 녹음된 구름 소리로 교체 (반복 재생, 속도 따라 크기·음높이)
+    const s = C.createBufferSource(); s.buffer = b; s.loop = true; const g = C.createGain(); g.gain.value = 0; s.connect(g).connect(AU.dry); s.start();
+    AU.rollSrc = s; AU.rollRec = g; AU.roll.gain.value = 0; });
   return C; }
 function sample(t0, buf, amp, rate, lp, wet) { const C = AU.ctx, s = C.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
   const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.Q.value = 0.5; const g = C.createGain(); g.gain.value = amp; s.connect(f).connect(g); out(g, wet); s.start(t0); }
@@ -271,12 +276,16 @@ function snd(kind, speed) { if (!st.sound) return; const C = audioInit(); if (!C
     sample(t0, AU.clacks[Math.floor(Math.random() * AU.clacks.length)], 0.95 * v, j, 2200 + 14000 * Math.min(1, v * 1.2), 0.28);
   } else if (kind === 'ball') { // (녹음 로딩 전 대체) 녹음 분석값: 1.85kHz·0.85kHz 중심, 6~8ms 안에 급감쇠
     burst(t0, 0.006, 0.6 * v, 'bandpass', 1850, 1.2, 0.3); tone(t0, 1850 * j, 0.022, 0.4 * v, 0.3); tone(t0, 850 * j, 0.03, 0.3 * v, 0.35);
-  } else if (kind === 'cushion') { // 쿠션: 고무가 받는 둔탁한 저음 + 레일 나무 울림
+  } else if (kind === 'cushion' && AU.cushion) { // 쿠션: 실제 녹음
+    sample(t0, AU.cushion, 1.0 * v, j, 900 + 9000 * Math.min(1, v * 1.3), 0.22);
+  } else if (kind === 'cushion') { // (녹음 로딩 전 대체) 고무가 받는 둔탁한 저음 + 레일 나무 울림
     tone(t0, 150 * j, 0.11, 0.55 * v, 0.25, 85); burst(t0, 0.05, 0.35 * v, 'lowpass', 520, 0.8, 0.2); tone(t0 + 0.002, 410 * j, 0.07, 0.10 * v, 0.4);
   } else if (kind === 'cue') { // 가죽 팁 '톡' + 큐 나무 공진
     burst(t0, 0.012, 0.45 * v, 'bandpass', 1700, 1.4, 0.25); tone(t0, 760 * j, 0.05, 0.22 * v, 0.3); tone(t0, 1520 * j, 0.025, 0.09 * v, 0.3);
   } else if (kind === 'land') { tone(t0, 95, 0.09, 0.4 * v, 0.2, 60); burst(t0, 0.03, 0.2 * v, 'lowpass', 300, 0.7, 0.1); } }
-function rollSound(sum) { if (!AU.ctx || !st.sound) return; AU.roll.gain.setTargetAtTime(Math.min(0.22, sum * 0.045), AU.ctx.currentTime, 0.05); }
+function rollSound(sum) { if (!AU.ctx) return; const on = st.sound ? 1 : 0, t = AU.ctx.currentTime;
+  if (AU.rollRec) { AU.rollRec.gain.setTargetAtTime(on * Math.min(0.9, Math.pow(sum / 2.5, 0.8) * 0.7), t, 0.06); AU.rollSrc.playbackRate.setTargetAtTime(0.85 + 0.3 * Math.min(1, sum / 3), t, 0.1); }
+  else AU.roll.gain.setTargetAtTime(on * Math.min(0.22, sum * 0.045), t, 0.05); }
 
 /* ---------- shot / playback ---------- */
 function shoot() { if (play || st.edit) return; audioInit();

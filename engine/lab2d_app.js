@@ -252,7 +252,13 @@ function audioInit() { if (AU.ctx) return AU.ctx; let C; try { C = new (window.A
   // rolling rumble (continuous, gain follows ball speed)
   const rs = C.createBufferSource(); rs.buffer = noise; rs.loop = true; const rf = C.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 380; rf.Q.value = 0.7;
   const rf2 = C.createBiquadFilter(); rf2.type = 'highpass'; rf2.frequency.value = 60; const rg = C.createGain(); rg.gain.value = 0; rs.connect(rf).connect(rf2).connect(rg).connect(dry); rs.start();
-  Object.assign(AU, { ctx: C, dry, send, noise, roll: rg }); return C; }
+  Object.assign(AU, { ctx: C, dry, send, noise, roll: rg, clacks: [] });
+  // 녹음된 공-공 충돌음 디코딩
+  if (typeof CLACK_WAV !== 'undefined') CLACK_WAV.forEach(u => { try { const bin = atob(u.split(',')[1]), buf = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    C.decodeAudioData(buf.buffer).then(b => AU.clacks.push(b)).catch(() => {}); } catch (e) {} });
+  return C; }
+function sample(t0, buf, amp, rate, lp, wet) { const C = AU.ctx, s = C.createBufferSource(); s.buffer = buf; s.playbackRate.value = rate;
+  const f = C.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.Q.value = 0.5; const g = C.createGain(); g.gain.value = amp; s.connect(f).connect(g); out(g, wet); s.start(t0); }
 function out(node, wetAmt) { node.connect(AU.dry); if (wetAmt) { const g = AU.ctx.createGain(); g.gain.value = wetAmt; node.connect(g).connect(AU.send); } }
 function tone(t0, f, dur, amp, wet, fEnd) { const C = AU.ctx, o = C.createOscillator(), g = C.createGain(); o.frequency.setValueAtTime(f, t0); if (fEnd) o.frequency.exponentialRampToValueAtTime(fEnd, t0 + dur);
   g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(amp, t0 + 0.0008); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); out(g, wet); o.start(t0); o.stop(t0 + dur + 0.02); }
@@ -261,11 +267,10 @@ function burst(t0, dur, amp, type, freq, q, wet) { const C = AU.ctx, s = C.creat
   s.connect(f).connect(g); out(g, wet); s.start(t0, Math.random() * 0.5); s.stop(t0 + dur + 0.02); }
 function snd(kind, speed) { if (!st.sound) return; const C = audioInit(); if (!C) return; if (C.state === 'suspended') C.resume();
   const t0 = C.currentTime + 0.005, v = Math.min(1, Math.pow(Math.max(0.02, speed) / 4, 0.75)), j = 1 + (Math.random() - 0.5) * 0.06;
-  if (kind === 'ball') { // 공-공: 묵직한 '딱' — 낮은 몸통 울림을 중심으로, 맑은 고음은 살짝만
-    burst(t0, 0.009, 0.5 * v, 'bandpass', 1900, 0.9, 0.35);                     // 접촉 순간
-    tone(t0, 1750 * j, 0.075, 0.30 * v, 0.4); tone(t0, 2650 * j, 0.05, 0.14 * v, 0.35); // 공 공진 (낮춘 음높이, 긴 여운)
-    tone(t0, 880 * j, 0.09, 0.22 * v, 0.45);                                      // 중저역 몸통
-    tone(t0, 260 * j, 0.06, 0.26 * v, 0.2, 190);                                  // 무게감 있는 저음 펀치
+  if (kind === 'ball' && AU.clacks.length) { // 공-공: 실제 녹음 사용. 약하게 맞을수록 고음이 줄어 둔하게, 매번 미세하게 다른 음높이
+    sample(t0, AU.clacks[Math.floor(Math.random() * AU.clacks.length)], 0.95 * v, j, 2200 + 14000 * Math.min(1, v * 1.2), 0.28);
+  } else if (kind === 'ball') { // (녹음 로딩 전 대체) 녹음 분석값: 1.85kHz·0.85kHz 중심, 6~8ms 안에 급감쇠
+    burst(t0, 0.006, 0.6 * v, 'bandpass', 1850, 1.2, 0.3); tone(t0, 1850 * j, 0.022, 0.4 * v, 0.3); tone(t0, 850 * j, 0.03, 0.3 * v, 0.35);
   } else if (kind === 'cushion') { // 쿠션: 고무가 받는 둔탁한 저음 + 레일 나무 울림
     tone(t0, 150 * j, 0.11, 0.55 * v, 0.25, 85); burst(t0, 0.05, 0.35 * v, 'lowpass', 520, 0.8, 0.2); tone(t0 + 0.002, 410 * j, 0.07, 0.10 * v, 0.4);
   } else if (kind === 'cue') { // 가죽 팁 '톡' + 큐 나무 공진
@@ -274,7 +279,7 @@ function snd(kind, speed) { if (!st.sound) return; const C = audioInit(); if (!C
 function rollSound(sum) { if (!AU.ctx || !st.sound) return; AU.roll.gain.setTargetAtTime(Math.min(0.22, sum * 0.045), AU.ctx.currentTime, 0.05); }
 
 /* ---------- shot / playback ---------- */
-function shoot() { if (play || st.edit) return; snd('cue', 0);
+function shoot() { if (play || st.edit) return; audioInit();
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
   const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
   $('busy').hidden = false;
@@ -320,4 +325,5 @@ function showResult(res) { const j = judge(res), v = $('verdict');
 /* ---------- loop ---------- */
 let lastT = performance.now();
 function frame(now) { const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; if (play) stepPlay(dt); requestAnimationFrame(frame); }
-buildSliders(); buildPos(); drawSpin(); powTrack(); ui(); resize(); requestAnimationFrame(frame);
+buildSliders(); buildPos(); drawSpin(); powTrack(); ui();
+document.addEventListener('pointerdown', () => { if (st.sound) { const C = audioInit(); C && C.state === 'suspended' && C.resume(); } }, { once: true }); resize(); requestAnimationFrame(frame);

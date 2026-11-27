@@ -68,6 +68,8 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
 #topbar .chip[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
 .seg3{display:inline-flex;gap:3px}
 .chipbtn[aria-pressed="true"]{background:var(--brass);color:var(--ink);border-color:var(--brass)}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
+.g5 button{padding:4px 0}
 </style>
 <div id="app">
   <div id="view">
@@ -89,7 +91,7 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
       <div class="col"><div class="row"><span class="lbl">당점</span><span id="spinTxt" class="num">중앙</span></div>
         <div class="row"><span class="lbl">기울기</span><span class="num" id="elevTxt"></span></div>
         <input id="elev" type="range" min="3" max="75" step="1" value="5" aria-label="큐 기울기">
-        <button id="spinReset" type="button" class="sm">당점 중앙</button></div></div>
+        <div class="g5" id="spinBtns"><button type="button" class="sm" data-da="-1" data-db="0" aria-label="당점 왼쪽">◀</button><button type="button" class="sm" data-da="0" data-db="1" aria-label="당점 위">▲</button><button id="spinReset" type="button" class="sm" aria-label="당점 중앙">●</button><button type="button" class="sm" data-da="0" data-db="-1" aria-label="당점 아래">▼</button><button type="button" class="sm" data-da="1" data-db="0" aria-label="당점 오른쪽">▶</button></div></div></div>
     <div><div class="row"><span class="lbl">힘 <span id="strokeSeg" class="seg3"><button type="button" class="sm chipbtn" data-s="push" aria-pressed="false">밀어</button><button type="button" class="sm chipbtn" data-s="normal" aria-pressed="true">보통</button><button type="button" class="sm chipbtn" data-s="snap" aria-pressed="false">끊어</button></span></span><span class="num" id="powTxt"></span></div><input id="pow" type="range" min="0" max="1000" step="1" value="380" aria-label="힘"></div>
     <div id="thick"><div class="row"><span class="lbl">두께 · 1적구 <button type="button" id="tgt" class="sm chipbtn">빨강</button></span><span class="num" id="thkTxt"></span></div>
       <div class="thkrow"><button type="button" class="sm" data-k="-1" aria-label="두께 왼쪽으로">‹</button><canvas id="thk" width="400" height="96" aria-label="두께 조절: 좌우로 끌기"></canvas><button type="button" class="sm" data-k="1" aria-label="두께 오른쪽으로">›</button></div></div>
@@ -559,11 +561,21 @@ function drawSpin() { const s = 168, c = s / 2, r = 78; sx.clearRect(0, 0, s, s)
   sx.strokeStyle = 'rgba(20,30,45,.18)'; for (const f of [0.2, 0.4]) { sx.beginPath(); sx.arc(c, c, r * f, 0, 7); sx.stroke(); }
   sx.setLineDash([5, 5]); sx.strokeStyle = 'rgba(194,54,43,.6)'; sx.beginPath(); sx.arc(c, c, r * params.miscue, 0, 7); sx.stroke(); sx.setLineDash([]);
   sx.fillStyle = '#1d5aa6'; sx.beginPath(); sx.arc(c + st.a * r, c - st.b * r, 9, 0, 7); sx.fill(); sx.strokeStyle = '#fff'; sx.lineWidth = 2; sx.stroke(); }
-let spinDrag = false;
-function spinTo(e) { const r = sc.getBoundingClientRect(); let a = (e.clientX - r.left) / r.width * 2 - 1, b = -((e.clientY - r.top) / r.height * 2 - 1);
-  const m = Math.hypot(a, b), lim = params.miscue * 0.98; if (m > lim) { a *= lim / m; b *= lim / m; } st.a = Math.abs(a) < 0.03 ? 0 : a; st.b = Math.abs(b) < 0.03 ? 0 : b; drawSpin(); ui(); }
-sc.addEventListener('pointerdown', e => { spinDrag = true; sc.setPointerCapture(e.pointerId); spinTo(e); });
-sc.addEventListener('pointermove', e => { if (spinDrag) spinTo(e); }); sc.addEventListener('pointerup', () => spinDrag = false);
+// 당점: 패드를 누른 곳으로 바로 이동하지 않고, 끄는 만큼 천천히 상대 이동(감도 0.5) → 손가락을 떼도 틀어지지 않음
+function setSpin(a, b) { const m = Math.hypot(a, b), lim = params.miscue * 0.98; if (m > lim) { a *= lim / m; b *= lim / m; }
+  st.a = Math.abs(a) < 0.005 ? 0 : a; st.b = Math.abs(b) < 0.005 ? 0 : b; drawSpin(); ui(); }
+let spinDrag = null;
+sc.addEventListener('pointerdown', e => { sc.setPointerCapture(e.pointerId); spinDrag = { x: e.clientX, y: e.clientY, hist: [] }; });
+sc.addEventListener('pointermove', e => { if (!spinDrag) return; const r = sc.getBoundingClientRect(), k = 2 / r.width * 0.5;
+  const dx = e.clientX - spinDrag.x, dy = e.clientY - spinDrag.y; spinDrag.x = e.clientX; spinDrag.y = e.clientY;
+  setSpin(st.a + dx * k, st.b - dy * k); spinDrag.hist.push([performance.now(), st.a, st.b]); if (spinDrag.hist.length > 40) spinDrag.hist.shift(); });
+const spinUp = () => { if (spinDrag) { const now = performance.now(), h = spinDrag.hist;
+    for (let i = h.length - 1; i >= 0; i--) if (now - h[i][0] >= 120) { if (Math.hypot(st.a - h[i][1], st.b - h[i][2]) < 0.04) setSpin(h[i][1], h[i][2]); break; } }
+  spinDrag = null; };
+sc.addEventListener('pointerup', spinUp); sc.addEventListener('pointercancel', spinUp);
+document.querySelectorAll('#spinBtns button[data-da]').forEach(b => { let t1, t2; const go = () => setSpin(st.a + b.dataset.da * 0.02, st.b + b.dataset.db * 0.02);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 70); }, 350); });
+  const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
 $('spinReset').onclick = () => { st.a = st.b = 0; drawSpin(); ui(); };
 $('elev').oninput = e => { st.elev = +e.target.value; ui(); };
 $('pow').oninput = e => { st.power = e.target.value / 1000; ui(); draw(); };

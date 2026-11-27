@@ -10,13 +10,14 @@
    ===================================================================== */
 const BilliardPhysics = (() => {
   const DEFAULTS = {
-    R: 0.03075, m: 0.21, L: 2.84, W: 1.42, g: 9.81,
+    // 한국 일반 당구장 국내식 중대: 내경 2448 x 1224 mm, 4구/3구 겸용 쿠션 높이 40mm, 3구 공 61.5mm
+    R: 0.03075, m: 0.21, L: 2.448, W: 1.224, g: 9.81,
     muS: 0.20,            // cloth sliding friction
     muR: 0.0085,          // cloth rolling resistance
     spinDecel: 10.0,      // rad/s^2, vertical-axis spin decay on cloth
     eBall: 0.94,          // ball-ball restitution
     ballMuA: 9.951e-3, ballMuB: 0.108, ballMuC: 1.088, // ball-ball friction mu(v)=a+b*exp(-c v)
-    cushionH: 0.037,      // cushion nose height from cloth (carom ~37mm)
+    cushionH: 0.040,      // cushion nose height from cloth (중대 겸용 40mm, 3구 전용 38mm)
     eCushion: 0.86,       // cushion restitution (energy based)
     muCushion: 0.16,      // ball-cushion friction
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact

@@ -131,13 +131,14 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
    ===================================================================== */
 const BilliardPhysics = (() => {
   const DEFAULTS = {
-    R: 0.03075, m: 0.21, L: 2.84, W: 1.42, g: 9.81,
+    // 한국 일반 당구장 국내식 중대: 내경 2448 x 1224 mm, 4구/3구 겸용 쿠션 높이 40mm, 3구 공 61.5mm
+    R: 0.03075, m: 0.21, L: 2.448, W: 1.224, g: 9.81,
     muS: 0.20,            // cloth sliding friction
     muR: 0.0085,          // cloth rolling resistance
     spinDecel: 10.0,      // rad/s^2, vertical-axis spin decay on cloth
     eBall: 0.94,          // ball-ball restitution
     ballMuA: 9.951e-3, ballMuB: 0.108, ballMuC: 1.088, // ball-ball friction mu(v)=a+b*exp(-c v)
-    cushionH: 0.037,      // cushion nose height from cloth (carom ~37mm)
+    cushionH: 0.040,      // cushion nose height from cloth (중대 겸용 40mm, 3구 전용 38mm)
     eCushion: 0.86,       // cushion restitution (energy based)
     muCushion: 0.16,      // ball-cushion friction
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact
@@ -380,13 +381,13 @@ const R = D.R, L = D.L, W = D.W, DL = L / 8, DW = W / 4, RAIL = 0.125, CUSH = 0.
 const COND = { fast: { muR: 0.0065, muS: 0.18, spinDecel: 8, eCushion: 0.88 }, normal: { muR: 0.0085, muS: 0.20, spinDecel: 10, eCushion: 0.86 }, slow: { muR: 0.0115, muS: 0.22, spinDecel: 12, eCushion: 0.83 } };
 const SLIDERS = [
   ['muR', '구름 저항', 0.004, 0.016, 0.0005], ['muS', '미끄럼 마찰', 0.1, 0.35, 0.01], ['spinDecel', '좌우회전 감쇠 (rad/s²)', 2, 25, 0.5],
-  ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.033, 0.042, 0.0005, 1000],
+  ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.035, 0.044, 0.0005, 1000],
   ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
 const st = { tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
-function breakBalls() { return [BP.makeBall('w', 0.71, 0.71 - 0.1524, D), BP.makeBall('o', 0.71, 0.71, D), BP.makeBall('r', 2.13, 0.71, D)]; }
+function breakBalls() { return [BP.makeBall('w', L / 4, W / 2 - 0.1524, D), BP.makeBall('o', L / 4, W / 2, D), BP.makeBall('r', L * 3 / 4, W / 2, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
 function aimAt(i) { const c = balls[0], o = balls[i]; st.phi = Math.atan2(o.y - c.y, o.x - c.x); }
 aimAt(2);
@@ -416,7 +417,7 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
   const dm = CUSH + (RAIL - CUSH) / 2; ctx.fillStyle = '#efe6d2';
   for (let i = 0; i <= 8; i++) { diamond(i * DL, -dm); diamond(i * DL, W + dm); } for (let j = 0; j <= 4; j++) { diamond(-dm, j * DW); diamond(L + dm, j * DW); }
   if (st.nums) { for (let i = 0; i <= 8; i++) { label(String(i), i * DL, W + RAIL + 0.035); label(String(i), i * DL, -RAIL - 0.04); } for (let j = 0; j <= 4; j++) { label(String(j), -RAIL - 0.04, j * DW); label(String(j), L + RAIL + 0.04, j * DW); } }
-  ctx.fillStyle = 'rgba(255,255,255,.3)'; [[0.71, 0.71], [2.13, 0.71], [1.42, 0.71]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 0.005, 0, 7); ctx.fill(); });
+  ctx.fillStyle = 'rgba(255,255,255,.3)'; [[L / 4, W / 2], [L * 3 / 4, W / 2], [L / 2, W / 2]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 0.005, 0, 7); ctx.fill(); });
   if (st.path && st.ghost && prev && !play) drawPaths(prev, prev.frames.length - 1, true);
   if (st.path && last) drawPaths(last, play && play.res === last ? Math.floor(Math.max(0, play.t) * params.recordHz) : last.frames.length - 1, false);
   if (!play && st.guide) drawGuide();

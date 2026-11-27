@@ -83,6 +83,11 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
 @media (orientation:landscape) and (max-height:390px){#spin{width:60px;height:60px}#spinPad{min-height:36px}#panel{gap:3px;padding-top:4px}#thk{height:38px}#shotRow #shoot{font-size:15px}#angBtns button{padding:3px 0}}
 #thkTxt{font-size:13px;text-align:right}
 #aimModeBtn{border-color:var(--brass);color:var(--fg);background:#2a2618}
+.z-ok{color:var(--fg)} .z-max{color:#e8b04a!important} .z-ext{color:var(--bad)!important}
+#spinPad.z-max{border-color:#e8b04a;border-style:solid} #spinPad.z-ext{border-color:var(--bad);border-style:solid;background-color:rgba(226,103,91,.12)}
+#pow{-webkit-appearance:none;appearance:none;height:8px;border-radius:4px;opacity:.9}
+#pow::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#f4f2ec;border:2px solid #1b1408;box-shadow:0 1px 3px #000}
+#pow::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#f4f2ec;border:2px solid #1b1408}
 </style>
 </head><body>
 <div id="app">
@@ -517,6 +522,15 @@ function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.roun
 function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NAMES[k]}</span><span style="display:flex;gap:4px"><input id="px${k}" inputmode="decimal" value="${dia(b.x / DL)}" aria-label="${NAMES[k]} 가로"><input id="py${k}" inputmode="decimal" value="${dia(b.y / DW)}" aria-label="${NAMES[k]} 세로"></span>`).join('');
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
+/* ---------- 범위 구분: 일상 / 최대 / 극단 ---------- */
+// 힘: 큐 속도 m/s, 당점: 중심에서 거리(반지름 비율), 두께: 1=정면
+const ZONES = { speed: [4.5, 6.5], spin: [0.40, 0.52], thin: [1 / 8, 1 / 16] };
+const ZN = ['일상', '최대', '극단'], ZC = ['z-ok', 'z-max', 'z-ext'];
+function zone(kind, v) { const z = ZONES[kind]; if (kind === 'thin') return v >= z[0] ? 0 : v >= z[1] ? 1 : 2; return v <= z[0] ? 0 : v <= z[1] ? 1 : 2; }
+function tag(el, z) { el.classList.remove(...ZC); el.classList.add(ZC[z]); }
+function powTrack() { const inv = s => Math.pow(Math.max(0, (s - 0.35) / 7.65), 1 / 1.6) * 100, p1 = inv(ZONES.speed[0]), p2 = inv(ZONES.speed[1]);
+  $('pow').style.background = `linear-gradient(90deg,var(--good) 0 ${p1}%,#e8b04a ${p1}% ${p2}%,var(--bad) ${p2}% 100%)`; }
+
 /* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
 // 수구만 실제 물리로 굴려서 첫 충돌(공 또는 쿠션)까지의 진짜 경로를 구함: 스쿼트 + 스워브(휘어짐) 모두 반영
 let traceCache = null;
@@ -557,7 +571,8 @@ function drawThick() { autoTarget(); const w = tc.width, h = tc.height, cx = w /
       const f = Math.max(0, 1 - Math.abs(xo) / (2 * R)), tr = { front: true, x: xo, f }; const gx = cx - xo * k;
       tx.setLineDash([5, 4]); tx.strokeStyle = '#d6a54a'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.stroke(); tx.setLineDash([]); real = ' → 실제 ' + lbl(tr); }
     else real = ' → 실제 ' + (t.hit ? '다른 공에 먼저 맞음' : '안 맞음'); }
-  $('thkTxt').textContent = lbl(ti) + real; }
+  $('thkTxt').textContent = lbl(ti) + real; const zt = ti.front && ti.f !== null ? zone('thin', ti.f) : 0;
+  tag($('thkTxt'), zt); if (zt) $('thkTxt').textContent += ' · ' + ZN[zt]; }
 let thkDrag = null;
 tc.addEventListener('pointerdown', e => { if (play) return; tc.setPointerCapture(e.pointerId); thkDrag = { x: e.clientX, hist: [] }; });
 tc.addEventListener('pointermove', e => { if (!thkDrag) return; const dx = e.clientX - thkDrag.x; thkDrag.x = e.clientX; const w = tc.getBoundingClientRect().width;
@@ -574,7 +589,10 @@ const sc = $('spin'), sx = sc.getContext('2d');
 function drawSpin() { const s = 168, c = s / 2, r = 78; sx.clearRect(0, 0, s, s);
   const g = sx.createRadialGradient(c - 24, c - 28, 8, c, c, r); g.addColorStop(0, '#fff'); g.addColorStop(1, '#b9c0c9'); sx.fillStyle = g; sx.beginPath(); sx.arc(c, c, r, 0, 7); sx.fill();
   sx.strokeStyle = 'rgba(20,30,45,.35)'; sx.lineWidth = 1.5; sx.beginPath(); sx.moveTo(c - r, c); sx.lineTo(c + r, c); sx.moveTo(c, c - r); sx.lineTo(c, c + r); sx.stroke();
-  sx.strokeStyle = 'rgba(20,30,45,.18)'; for (const f of [0.2, 0.4]) { sx.beginPath(); sx.arc(c, c, r * f, 0, 7); sx.stroke(); }
+  // 범위 띠: 최대(주황), 극단(빨강)
+  const ring = (r0, r1, col) => { sx.fillStyle = col; sx.beginPath(); sx.arc(c, c, r * r1, 0, 7); sx.arc(c, c, r * r0, 0, 7, true); sx.fill(); };
+  ring(ZONES.spin[0], ZONES.spin[1], 'rgba(232,176,74,.28)'); ring(ZONES.spin[1], params.miscue, 'rgba(226,103,91,.32)');
+  sx.strokeStyle = 'rgba(20,30,45,.18)'; for (const f of [0.2]) { sx.beginPath(); sx.arc(c, c, r * f, 0, 7); sx.stroke(); }
   sx.setLineDash([5, 5]); sx.strokeStyle = 'rgba(194,54,43,.6)'; sx.beginPath(); sx.arc(c, c, r * params.miscue, 0, 7); sx.stroke(); sx.setLineDash([]);
   sx.fillStyle = '#1d5aa6'; sx.beginPath(); sx.arc(c + st.a * r, c - st.b * r, 9, 0, 7); sx.fill(); sx.strokeStyle = '#fff'; sx.lineWidth = 2; sx.stroke(); }
 // 당점: 패드를 누른 곳으로 바로 이동하지 않고, 끄는 만큼 천천히 상대 이동(감도 0.5) → 손가락을 떼도 틀어지지 않음
@@ -602,8 +620,9 @@ document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 50); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
 function spinLabel(a, b) { const s = []; if (b > 0.02) s.push('위 ' + Math.round(b * 100)); if (b < -0.02) s.push('아래 ' + Math.round(-b * 100)); if (a > 0.02) s.push('우 ' + Math.round(a * 100)); if (a < -0.02) s.push('좌 ' + Math.round(-a * 100)); return s.join(' · ') || '중앙'; }
-function ui() { drawThick(); $('spinTxt').textContent = spinLabel(st.a, st.b); $('elevTxt').textContent = st.elev + '°';
-  $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s';
+function ui() { drawThick(); const zs = zone('spin', Math.hypot(st.a, st.b)), zp = zone('speed', cueSpeed(st.power));
+  $('spinTxt').textContent = spinLabel(st.a, st.b) + (zs ? ' · ' + ZN[zs] : ''); tag($('spinTxt'), zs); tag($('spinPad'), zs); $('elevTxt').textContent = st.elev + '°';
+  $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s · ' + ZN[zp]; tag($('powTxt'), zp);
   $('angTxt').textContent = (st.aimDia ? st.aimDia + ' · ' : '') + (((st.phi * 180 / Math.PI) % 360 + 360) % 360).toFixed(2) + '°';
   $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }
@@ -683,5 +702,5 @@ function showResult(res) { const j = judge(res), v = $('verdict');
 /* ---------- loop ---------- */
 let lastT = performance.now();
 function frame(now) { const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now; if (play) stepPlay(dt); requestAnimationFrame(frame); }
-buildSliders(); buildPos(); drawSpin(); ui(); resize(); requestAnimationFrame(frame);
+buildSliders(); buildPos(); drawSpin(); powTrack(); ui(); resize(); requestAnimationFrame(frame);
 </script></body></html>

@@ -146,6 +146,9 @@ const R=0.03075, L=2.84, W=1.42;
 // 아케이드 튜닝: 실제보다 회전 효과(밀어치기·끌어치기·좌우 회전)를 과장
 const G=9.81, MU_S=0.1, MU_R=0.011, SPIN_DEC=4, E_BALL=0.94, E_RAIL=0.8, MU_RAIL=0.45, RAIL_ROLL_KEEP=0.35;
 const SPIN_GAIN=1.8, SIDE_GAIN=1.8, KICK=0.35;
+// 쿠션마다 회전 손실 / 회전이 셀수록 쿠션 그립↑·구름 저항↓ (더 멀리 감)
+const RAIL_SPIN_KEEP=0.85, RAIL_TOP_KEEP=0.85, SPIN_GRIP=0.3, SPIN_GLIDE=0.45;
+function spinLevel(b){const sp=Math.hypot(b.vx,b.vy); return Math.min(1,Math.abs(R*b.wz)/(sp+0.4));}
 const DT=1/1000;
 function makeBalls(){return [
   {id:'w',x:0.71,y:0.71+0.1524,vx:0,vy:0,wx:0,wy:0,wz:0},
@@ -166,11 +169,12 @@ function railHit(b,nx,ny){
   const e=E_RAIL-Math.min(0.18,0.035*(-vn));
   const vn2=-e*vn;
   const s=vt-R*b.wz;
-  let dvt=-(2/7)*s; const lim=MU_RAIL*(1+e)*(-vn);
+  const lvl=spinLevel(b);
+  let dvt=-(2/7)*s; const lim=MU_RAIL*(1+SPIN_GRIP*lvl)*(1+e)*(-vn);
   if(dvt>lim)dvt=lim; if(dvt<-lim)dvt=-lim;
-  vt+=dvt; b.wz+=-2.5*dvt/R;
+  vt+=dvt; b.wz+=-2.5*dvt/R; b.wz*=RAIL_SPIN_KEEP;
   let rvx=b.wy*R, rvy=-b.wx*R;
-  let rvn=rvx*nx+rvy*ny; const rvt=rvx*tx+rvy*ty; rvn*=RAIL_ROLL_KEEP;
+  let rvn=rvx*nx+rvy*ny; let rvt=rvx*tx+rvy*ty; rvn*=RAIL_ROLL_KEEP; rvt*=RAIL_TOP_KEEP;
   rvx=rvn*nx+rvt*tx; rvy=rvn*ny+rvt*ty; b.wy=rvx/R; b.wx=-rvy/R;
   b.vx=vn2*nx+vt*tx; b.vy=vn2*ny+vt*ty;
   return true;
@@ -183,7 +187,7 @@ function friction(b,dt){
     b.wx+=2.5/R*fy*dt; b.wy+=-2.5/R*fx*dt;
   } else {
     b.vx-=(2/7)*cvx; b.vy-=(2/7)*cvy;
-    const sp=Math.hypot(b.vx,b.vy), dec=MU_R*G*dt;
+    const sp=Math.hypot(b.vx,b.vy), dec=MU_R*(1-SPIN_GLIDE*spinLevel(b))*G*dt;
     if(sp<=dec){b.vx=0;b.vy=0;} else {b.vx*=(sp-dec)/sp; b.vy*=(sp-dec)/sp;}
     b.wx=-b.vy/R; b.wy=b.vx/R;
   }

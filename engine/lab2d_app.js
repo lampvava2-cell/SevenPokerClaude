@@ -10,7 +10,7 @@ const SLIDERS = [
   ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
-const st = { tgt: 2, phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
+const st = { tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
 let balls = breakBalls(), play = null, last = null, prev = null, before = null;
 function breakBalls() { return [BP.makeBall('w', 0.71, 0.71 - 0.1524, D), BP.makeBall('o', 0.71, 0.71, D), BP.makeBall('r', 2.13, 0.71, D)]; }
 const cueSpeed = p => 0.35 + 7.65 * Math.pow(p, 1.6);
@@ -135,7 +135,12 @@ function setThick(x) { const c = balls[0], o = balls[st.tgt], dist = Math.hypot(
   if (Math.abs(x) >= dist) return; st.phi = Math.atan2(o.y - c.y, o.x - c.x) + Math.asin(x / dist); ui(); draw(); }
 function frac8(f) { const n = Math.round(f * 8); if (n === 8) return '거의 정면'; if (n === 0) return '거의 0'; const g = n % 4 === 0 ? 4 : n % 2 === 0 ? 2 : 1; return (n / g) + '/' + (8 / g); }
 const tc = $('thk'), tx = tc.getContext('2d');
-function drawThick() { const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2, r = h * 0.36, k = r / R; tx.clearRect(0, 0, w, h);
+// 1적구 자동 선택: 조준선이 처음 닿는 공 (두께 조절 중에는 고정)
+function autoTarget() { if (st.tgtMode !== 'auto' || thkDrag) return; const c = balls[0], r = cast(c.x, c.y, Math.cos(st.phi), Math.sin(st.phi));
+  if (r.hit && r.hit.type === 'ball') st.tgt = r.hit.i;
+  else { const near = [1, 2].map(i => { const o = balls[i], d = Math.hypot(o.x - c.x, o.y - c.y), al = Math.atan2(o.y - c.y, o.x - c.x) - st.phi; return [Math.abs(Math.atan2(Math.sin(al), Math.cos(al))), i]; }).sort((p, q) => p[0] - q[0]); st.tgt = near[0][1]; }
+  $('tgt').textContent = '자동 · ' + (st.tgt === 2 ? '빨강' : '주황'); }
+function drawThick() { autoTarget(); const w = tc.width, h = tc.height, cx = w / 2, cy = h / 2, r = h * 0.36, k = r / R; tx.clearRect(0, 0, w, h);
   const ti = thickInfo(); tx.strokeStyle = 'rgba(255,255,255,.12)'; tx.lineWidth = 2; tx.beginPath(); tx.moveTo(cx, 4); tx.lineTo(cx, h - 4); tx.stroke();
   const col = COLORS[st.tgt]; let g = tx.createRadialGradient(cx - r * .3, cy - r * .3, r * .1, cx, cy, r); g.addColorStop(0, col[0]); g.addColorStop(1, col[1]); tx.fillStyle = g; tx.beginPath(); tx.arc(cx, cy, r, 0, 7); tx.fill();
   if (ti.front) { const gx = cx - ti.x * k; tx.fillStyle = 'rgba(255,255,255,.55)'; tx.strokeStyle = '#fff'; tx.lineWidth = 2; tx.beginPath(); tx.arc(gx, cy, r, 0, 7); tx.fill(); tx.stroke(); }
@@ -156,7 +161,8 @@ const thkUp = () => { if (thkDrag) settle(thkDrag.hist); thkDrag = null; }; tc.a
 document.querySelectorAll('.thkrow button').forEach(b => { let t1, t2; const go = () => { if (play) return; setThick(thickInfo().x - (+b.dataset.k) * 2 * R / 64); };
   b.addEventListener('pointerdown', e => { e.preventDefault(); go(); t1 = setTimeout(() => { t2 = setInterval(go, 60); }, 350); });
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
-$('tgt').onclick = () => { st.tgt = st.tgt === 2 ? 1 : 2; $('tgt').textContent = st.tgt === 2 ? '빨강' : '주황'; ui(); };
+$('tgt').onclick = () => { st.tgtMode = st.tgtMode === 'auto' ? 'red' : st.tgtMode === 'red' ? 'orange' : 'auto';
+  if (st.tgtMode !== 'auto') { st.tgt = st.tgtMode === 'red' ? 2 : 1; $('tgt').textContent = st.tgtMode === 'red' ? '빨강' : '주황'; } ui(); };
 
 /* ---------- controls ---------- */
 const sc = $('spin'), sx = sc.getContext('2d');

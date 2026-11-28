@@ -94,6 +94,7 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
 #settleLines span:first-child,#settleLines span:nth-child(3n+1){text-align:left}
 #settleLines{display:grid;grid-template-columns:auto auto auto;column-gap:.4em;row-gap:.2em;align-items:baseline}
 #settle b{font-family:var(--f-num);font-size:1.6em;color:rgba(255,255,255,.55);font-variant-numeric:tabular-nums;display:inline-block;min-width:2.2em;text-align:right}
+#miscue{position:absolute;transform:translate(-50%,-50%) rotate(-6deg);pointer-events:none;white-space:nowrap;font-weight:700;color:rgba(255,235,120,.5);text-shadow:0 3px 12px rgba(0,0,0,.3);letter-spacing:.02em}
 </style>
 </head><body>
 <div id="app">
@@ -111,6 +112,7 @@ select{font:inherit;background:#0f141b;color:var(--fg);border:1px solid var(--li
     </div>
     <div class="chip" id="live" hidden></div>
     <div id="busy" hidden>계산 중…</div>
+    <div id="miscue" hidden>ㅋㅋ 틱사그리 임돠 행님 ㅋ</div>
     <div id="settle" hidden><div id="settleLines"></div></div>
   </div>
   <aside id="panel">
@@ -475,6 +477,9 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.arc(p[0] + so, p[1] - so, R, 0, 7); ctx.fill();
     const g = ctx.createRadialGradient(p[0] - r * 0.35, p[1] + r * 0.4, r * 0.1, p[0], p[1], r); g.addColorStop(0, COLORS[k][0]); g.addColorStop(1, COLORS[k][1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
+  { const mc = $('miscue'), mon = !!(play && play.res.strike && play.res.strike.miscue); // 미스큐: 샷이 끝날 때까지 당구대에 크게 표시
+    if (mon) { const c = new DOMPoint(L / 2, W / 2).matrixTransform(M); mc.style.left = (c.x / dpr) + 'px'; mc.style.top = (c.y / dpr) + 'px'; mc.style.fontSize = Math.max(16, Math.min(64, (rot ? W : L) * scale * 0.9 / 13)) + 'px'; }
+    mc.hidden = !mon; }
   { const el = $('settle'); let on = false;
     if (play && play.res.ballStop && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25) {
       // 세 공 모두 항상 표시. 스핀 없이 멈춰 있는 공은 0초

@@ -52,6 +52,9 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.arc(p[0] + so, p[1] - so, R, 0, 7); ctx.fill();
     const g = ctx.createRadialGradient(p[0] - r * 0.35, p[1] + r * 0.4, r * 0.1, p[0], p[1], r); g.addColorStop(0, COLORS[k][0]); g.addColorStop(1, COLORS[k][1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
+  { const mc = $('miscue'), mon = !!(play && play.res.strike && play.res.strike.miscue); // 미스큐: 샷이 끝날 때까지 당구대에 크게 표시
+    if (mon) { const c = new DOMPoint(L / 2, W / 2).matrixTransform(M); mc.style.left = (c.x / dpr) + 'px'; mc.style.top = (c.y / dpr) + 'px'; mc.style.fontSize = Math.max(16, Math.min(64, (rot ? W : L) * scale * 0.9 / 13)) + 'px'; }
+    mc.hidden = !mon; }
   { const el = $('settle'); let on = false;
     if (play && play.res.ballStop && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25) {
       // 세 공 모두 항상 표시. 스핀 없이 멈춰 있는 공은 0초

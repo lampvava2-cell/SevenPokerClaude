@@ -166,7 +166,7 @@ const BilliardPhysics = (() => {
     muCushion: 0.16,      // ball-cushion friction
     muTableImpact: 0.20,  // ball-cloth friction during cushion impact
     eTable: 0.45,         // ball-slate bounce restitution (landing)
-    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.005, // 캐롬 저반발(LD) 샤프트 수준 miscue: 0.62,
+    cueMass: 0.52, cueTipE: 0.78, cueEndMass: 0.003, // 캐롬 저반발(LD) 샤프트 수준 (현장 체감에 맞춰 3g) miscue: 0.62,
     // 스트로크: 유효 큐 질량(그립·손목이 함께 미는 정도), 팁 반발, 현장 체감 회전 보정
     // 스트로크 (현장 지도서 공통 내용 반영):
     //  밀어치기(가속하며 통과): 큐가 공을 오래 밀어 '전진력' 추가 → 앞으로 잘 밀림, 하단은 덜 끌려옴, 진로 길고 힘참, 회전 영향은 상대적으로 작음

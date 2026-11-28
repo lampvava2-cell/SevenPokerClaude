@@ -52,7 +52,14 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.arc(p[0] + so, p[1] - so, R, 0, 7); ctx.fill();
     const g = ctx.createRadialGradient(p[0] - r * 0.35, p[1] + r * 0.4, r * 0.1, p[0], p[1], r); g.addColorStop(0, COLORS[k][0]); g.addColorStop(1, COLORS[k][1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
-  if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); }); } }
+  if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); });
+    if (drag && drag.k >= 0) { const b = balls[drag.k], dm = CUSH + (RAIL - CUSH) / 2; // 끄는 공에서 네 쿠션의 다이아 줄까지 기준선 + 위치 숫자
+      ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.015, 0.01]); ctx.beginPath();
+      ctx.moveTo(-dm, b.y); ctx.lineTo(L + dm, b.y); ctx.moveTo(b.x, -dm); ctx.lineTo(b.x, W + dm); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#d6a54a'; for (const [x, y] of [[-dm, b.y], [L + dm, b.y], [b.x, -dm], [b.x, W + dm]]) { ctx.beginPath(); ctx.arc(x, y, 0.014, 0, 7); ctx.fill(); }
+      ctx.save(); if (rot) ctx.translate(b.x + R + 0.07, b.y); else ctx.translate(b.x, b.y + R + 0.07); ctx.scale(1, -1); if (rot) ctx.rotate(Math.PI / 2);
+      const t = `가로 ${dia(b.x / DL)} · 세로 ${dia(b.y / DW)}`; ctx.font = '700 0.05px "Barlow Condensed","IBM Plex Sans KR",sans-serif'; const w = ctx.measureText(t).width + 0.04;
+      ctx.fillStyle = 'rgba(14,18,24,.85)'; ctx.fillRect(-w / 2, -0.035, w, 0.07); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 0, 0.002); ctx.restore(); } } }
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 function diamond(x, y) { const s = 0.011; ctx.beginPath(); ctx.moveTo(x, y - s); ctx.lineTo(x + s * 0.7, y); ctx.lineTo(x, y + s); ctx.lineTo(x - s * 0.7, y); ctx.closePath(); ctx.fill(); }
 function label(t, x, y) { ctx.save(); ctx.translate(x, y); ctx.scale(1, -1); if (rot) ctx.rotate(Math.PI / 2); ctx.fillStyle = 'rgba(233,238,244,.55)'; ctx.font = '600 0.045px "Barlow Condensed",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 0, 0); ctx.restore(); }
@@ -92,12 +99,12 @@ function drawCue() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st
 /* ---------- input ---------- */
 let drag = null;
 cv.addEventListener('pointerdown', e => { if (play) return; cv.setPointerCapture(e.pointerId); const p = toWorld(e);
-  if (st.edit) { let k = -1, best = 0.09; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
+  if (st.edit) { let k = -1, best = 0.14; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
   drag = { aim: true, hist: [] }; aimPoint(p); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) { aimPoint(p); drag.hist.push([performance.now(), st.phi]); if (drag.hist.length > 40) drag.hist.shift(); } else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
 // 손가락을 뗄 때 생기는 미세한 흔들림만 되돌림 (마지막 120ms 동안 0.3° 미만 변화일 때)
 function settle(hist) { const now = performance.now(); for (let i = hist.length - 1; i >= 0; i--) if (now - hist[i][0] >= 120) { if (Math.abs(st.phi - hist[i][1]) < 0.3 * Math.PI / 180) { st.phi = hist[i][1]; ui(); draw(); } return; } }
-const up = () => { if (drag && drag.k >= 0) buildPos(); if (drag && drag.aim) settle(drag.hist); drag = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+const up = () => { const wasBall = drag && drag.k >= 0; if (wasBall) buildPos(); if (drag && drag.aim) settle(drag.hist); drag = null; if (wasBall) draw(); }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 function aimPoint(p) { const c = balls[0]; let x = p.x, y = p.y;
   if (st.aimMode === 'back') { // 큐 쪽(수구 뒤)을 터치: 손가락 반대 방향으로 조준 → 손가락이 진로를 가리지 않음
     if (Math.hypot(x - c.x, y - c.y) < 0.01) return; st.phi = Math.atan2(c.y - y, c.x - x); draw(); ui(); return; }
@@ -214,7 +221,7 @@ document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go
 function spinLabel(a, b) { const s = []; if (b > 0.02) s.push('위 ' + Math.round(b * 100)); if (b < -0.02) s.push('아래 ' + Math.round(-b * 100)); if (a > 0.02) s.push('우 ' + Math.round(a * 100)); if (a < -0.02) s.push('좌 ' + Math.round(-a * 100)); return s.join(' · ') || '중앙'; }
 function ui() { drawThick(); const zs = zone('spin', Math.hypot(st.a, st.b)), zp = zone('speed', cueSpeed(st.power));
   $('spinTxt').textContent = spinLabel(st.a, st.b) + (zs ? ' · ' + ZN[zs] : ''); tag($('spinTxt'), zs); tag($('spinPad'), zs); $('elevTxt').textContent = st.elev + '°';
-  $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s · ' + ZN[zp]; tag($('powTxt'), zp);
+  $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s' + (zp ? ' · ' + ZN[zp] : ''); tag($('powTxt'), zp);
   $('angTxt').textContent = (st.aimDia ? st.aimDia + ' · ' : '') + (((st.phi * 180 / Math.PI) % 360 + 360) % 360).toFixed(2) + '°';
   $('menu').querySelector('[data-t="info"]').disabled = !last;
   $('shoot').disabled = !!play || st.edit; $('replay').disabled = !last || !!play; $('retry').disabled = !before || !!play; }

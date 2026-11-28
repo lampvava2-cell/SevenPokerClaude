@@ -52,10 +52,12 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.arc(p[0] + so, p[1] - so, R, 0, 7); ctx.fill();
     const g = ctx.createRadialGradient(p[0] - r * 0.35, p[1] + r * 0.4, r * 0.1, p[0], p[1], r); g.addColorStop(0, COLORS[k][0]); g.addColorStop(1, COLORS[k][1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
-  { const el = $('settle'), on = play && play.res.settleT !== undefined && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25;
-    if (on) { const left = Math.max(0, (play.res.duration - play.t) / Math.max(0.05, play.speed)), c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
-      $('settleWhy').textContent = play.res.waitWhy; $('settleSec').textContent = left.toFixed(1) + '초';
-      el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; el.style.fontSize = Math.max(14, Math.min(46, (rot ? W : L) * scale * 0.045)) + 'px'; }
+  { const el = $('settle'); let on = false;
+    if (play && play.res.ballStop && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25) {
+      const sp = Math.max(0.05, play.speed), lines = play.res.ballStop.map((t, k) => [k, (t - play.t) / sp]).filter(([, l]) => l > 0.05);
+      on = lines.length > 0; const c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
+      $('settleLines').innerHTML = lines.map(([k, l]) => `<span>${['흰색공', '주황색공', '빨간색공'][k]} 스핀 멈출 때까지 잔여시간</span><b>${l.toFixed(1)}</b><span>초</span>`).join('');
+      el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; el.style.fontSize = Math.max(10, Math.min(28, (rot ? W : L) * scale * 0.9 / 23)) + 'px'; }  // 한 줄(약 23글자)이 당구대 폭 안에 들어가도록
     el.hidden = !on; }
   if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); });
     if (drag && drag.k >= 0) { const b = balls[drag.k], dm = CUSH + (RAIL - CUSH) / 2; // 끄는 공에서 네 쿠션의 다이아 줄까지 기준선 + 위치 숫자
@@ -305,16 +307,19 @@ function shoot() { if (play || st.edit) return; audioInit();
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
   const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
   $('busy').hidden = false;
-  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.waitWhy = waitCause(res); res.aimDia = st.aimDia; $('busy').hidden = true;
+  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.ballStop = ballStops(res); res.aimDia = st.aimDia; $('busy').hidden = true;
     if (last) prev = last; last = res; startPlay(res); snd('cue', shot.V); }, 20); }
 // 눈에 보이는 움직임이 끝나는 시점: 이후 모든 공이 최종 위치에서 2mm 이내
 function settleTime(res) { const f = res.frames, n = f.length - 1, fin = f[n];
   for (let i = n; i >= 0; i--) for (let k = 0; k < 3; k++) if (Math.hypot(f[i][k * 8] - fin[k * 8], f[i][k * 8 + 1] - fin[k * 8 + 1]) > 0.002) return Math.min(res.duration, (i + 1) / params.recordHz);
   return 0; }
-// 대기 원인: 눈에 보이는 움직임이 끝난 뒤에도 회전(자세 변화)이 남은 공을 찾음
-function waitCause(res) { const f = res.frames, n = f.length - 1, i0 = Math.min(n, Math.round(res.settleT * params.recordHz)), who = [];
-  for (let k = 0; k < 3; k++) { const o = k * 8, q0 = f[i0], q1 = f[n]; const dot = Math.abs(q0[o + 3] * q1[o + 3] + q0[o + 4] * q1[o + 4] + q0[o + 5] * q1[o + 5] + q0[o + 6] * q1[o + 6]); if (dot < 0.9999) who.push(k); }
-  return who.length ? who.map(k => NAMES[k]).join('·') + ' 스핀 멈출 때까지' : '공이 완전히 멈출 때까지'; }
+// 공별로 회전·이동이 완전히 멈추는 시각 (프레임 간 자세 변화가 사라지는 마지막 시점)
+function ballStops(res) { const f = res.frames, n = f.length - 1, hz = params.recordHz;
+  return [0, 1, 2].map(k => { const o = k * 8;
+    for (let i = n - 1; i >= 0; i--) { const A = f[i], B = f[i + 1];
+      const dq = Math.abs(A[o + 3] * B[o + 3] + A[o + 4] * B[o + 4] + A[o + 5] * B[o + 5] + A[o + 6] * B[o + 6]);
+      if (dq < 1 - 1e-9 || Math.hypot(A[o] - B[o], A[o + 1] - B[o + 1]) > 1e-6) return (i + 1) / hz; }
+    return 0; }); }
 function startPlay(res) { play = { res, t: 0, speed: st.rspeed, evi: 0 }; $('live').hidden = false; ui(); }
 $('shoot').onclick = shoot;
 $('replay').onclick = () => { if (!last || play) return; startPlay(last); };

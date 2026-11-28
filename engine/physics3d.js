@@ -29,7 +29,9 @@ const BilliardPhysics = (() => {
     //  끊어치기(임팩트 직후 정지): 전진력 억제(스턴 성향) → 분리각 커짐, 진로 짧고 약함, 하단은 강하게 끌려옴, 회전 변화 극적
     //  roll: 자연 구름 대비 추가 전진회전 비율, spin: 당점 회전 배율, mass/tipE: 유효 큐 질량·팁 반발
     strokes: { push: { mass: 0.66, tipE: 0.80, roll: 0.22, spin: 0.90 }, normal: { mass: 0.52, tipE: 0.78, roll: 0, spin: 1 }, snap: { mass: 0.44, tipE: 0.70, roll: -0.18, spin: 1.15 } },
-    strokeFeel: 1.0,      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
+    strokeFeel: 1.0,
+    swerveK: 0.5,         // 스워브(들린 큐 + 좌우회전 → 휘어짐) 세기. 1 = 이론값, 현장 체감에 맞춰 낮춤
+      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -68,6 +70,9 @@ const BilliardPhysics = (() => {
     ball.vx += Jv[0]/m; ball.vy += Jv[1]/m; ball.vz += Jv[2]/m;
     const dw = cross(p, Jv);
     const fe = P.strokeFeel || 0, sk = 1 + ((S.spin || 1) - 1) * fe, rk = (S.roll || 0) * fe;
+    // 좌우 당점이 만드는 회전축 기울기(스워브 성분: 진행방향 축의 수평 회전)를 swerveK 만큼만 남김
+    const sideH = a * R * J * se / I * (1 - (P.swerveK ?? 1));
+    dw[0] -= sideH * I * Math.cos(shot.phi); dw[1] -= sideH * I * Math.sin(shot.phi);
     ball.wx += sk * dw[0]/I; ball.wy += sk * dw[1]/I; ball.wz += sk * dw[2]/I;
     // 전진력(+)/스턴(-) 성분: 진행 방향 자연 구름 회전의 일정 비율을 더하거나 뺌
     ball.wx += rk * (-ball.vy / R); ball.wy += rk * (ball.vx / R);

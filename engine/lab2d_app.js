@@ -7,7 +7,7 @@ const COND = { fast: { muR: 0.0065, muS: 0.18, spinDecel: 8, eCushion: 0.88 }, n
 const SLIDERS = [
   ['muR', '구름 저항', 0.004, 0.016, 0.0005], ['muS', '미끄럼 마찰', 0.1, 0.35, 0.01], ['spinDecel', '좌우회전 감쇠 (rad/s²)', 2, 25, 0.5],
   ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.035, 0.044, 0.0005, 1000],
-  ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
+  ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['swerveK', '스워브 휘어짐 세기 (1=이론값)', 0, 1, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
 const st = { aimMode: 'front', stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
@@ -133,7 +133,7 @@ function powTrack() { const inv = s => Math.pow(Math.max(0, (s - 0.35) / 7.65), 
 /* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
 // 수구만 실제 물리로 굴려서 첫 충돌(공 또는 쿠션)까지의 진짜 경로를 구함: 스쿼트 + 스워브(휘어짐) 모두 반영
 let traceCache = null;
-function realTrace() { const key = [st.stroke, params.strokeFeel, st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
+function realTrace() { const key = [st.stroke, params.strokeFeel, params.swerveK, st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
   if (traceCache && traceCache.key === key) return traceCache;
   const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
   BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke });

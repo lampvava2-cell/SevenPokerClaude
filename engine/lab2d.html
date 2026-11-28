@@ -171,7 +171,9 @@ const BilliardPhysics = (() => {
     //  끊어치기(임팩트 직후 정지): 전진력 억제(스턴 성향) → 분리각 커짐, 진로 짧고 약함, 하단은 강하게 끌려옴, 회전 변화 극적
     //  roll: 자연 구름 대비 추가 전진회전 비율, spin: 당점 회전 배율, mass/tipE: 유효 큐 질량·팁 반발
     strokes: { push: { mass: 0.66, tipE: 0.80, roll: 0.22, spin: 0.90 }, normal: { mass: 0.52, tipE: 0.78, roll: 0, spin: 1 }, snap: { mass: 0.44, tipE: 0.70, roll: -0.18, spin: 1.15 } },
-    strokeFeel: 1.0,      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
+    strokeFeel: 1.0,
+    swerveK: 0.5,         // 스워브(들린 큐 + 좌우회전 → 휘어짐) 세기. 1 = 이론값, 현장 체감에 맞춰 낮춤
+      // 0 = 순수 충격량 물리만, 1 = 지도서 기준 효과 전부
     dt: 1e-4, recordHz: 240, maxTime: 40
   };
 
@@ -210,6 +212,9 @@ const BilliardPhysics = (() => {
     ball.vx += Jv[0]/m; ball.vy += Jv[1]/m; ball.vz += Jv[2]/m;
     const dw = cross(p, Jv);
     const fe = P.strokeFeel || 0, sk = 1 + ((S.spin || 1) - 1) * fe, rk = (S.roll || 0) * fe;
+    // 좌우 당점이 만드는 회전축 기울기(스워브 성분: 진행방향 축의 수평 회전)를 swerveK 만큼만 남김
+    const sideH = a * R * J * se / I * (1 - (P.swerveK ?? 1));
+    dw[0] -= sideH * I * Math.cos(shot.phi); dw[1] -= sideH * I * Math.sin(shot.phi);
     ball.wx += sk * dw[0]/I; ball.wy += sk * dw[1]/I; ball.wz += sk * dw[2]/I;
     // 전진력(+)/스턴(-) 성분: 진행 방향 자연 구름 회전의 일정 비율을 더하거나 뺌
     ball.wx += rk * (-ball.vy / R); ball.wy += rk * (ball.vx / R);
@@ -418,7 +423,7 @@ const COND = { fast: { muR: 0.0065, muS: 0.18, spinDecel: 8, eCushion: 0.88 }, n
 const SLIDERS = [
   ['muR', '구름 저항', 0.004, 0.016, 0.0005], ['muS', '미끄럼 마찰', 0.1, 0.35, 0.01], ['spinDecel', '좌우회전 감쇠 (rad/s²)', 2, 25, 0.5],
   ['eCushion', '쿠션 반발', 0.6, 0.98, 0.01], ['muCushion', '쿠션 마찰', 0.05, 0.4, 0.01], ['cushionH', '쿠션 높이 (mm)', 0.035, 0.044, 0.0005, 1000],
-  ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
+  ['strokeFeel', '스트로크 효과 세기 (0=없음)', 0, 1.5, 0.05], ['swerveK', '스워브 휘어짐 세기 (1=이론값)', 0, 1, 0.05], ['eBall', '공-공 반발', 0.85, 0.99, 0.005], ['cueEndMass', '큐 끝 질량 (스쿼트, g)', 0.003, 0.02, 0.0005, 1000], ['cueTipE', '큐 팁 반발', 0.5, 0.95, 0.01]];
 const COLORS = [['#ffffff', '#c3c7cd'], ['#ffb35c', '#d65a0c'], ['#ff5a4d', '#a51d16']], NAMES = ['흰 공', '주황', '빨강'];
 const RAILNAME = ['왼쪽 단쿠션', '오른쪽 단쿠션', '아래 장쿠션', '위 장쿠션'];
 const st = { aimMode: 'front', stroke: 'normal', tgt: 2, tgtMode: 'auto', phi: 0, a: 0, b: 0, elev: 5, power: 0.38, guide: true, path: true, ghost: true, nums: true, sound: true, edit: false, snap: true, rspeed: 1 };
@@ -544,7 +549,7 @@ function powTrack() { const inv = s => Math.pow(Math.max(0, (s - 0.35) / 7.65), 
 /* ---------- 실제 출발 방향 (스쿼트 포함) ---------- */
 // 수구만 실제 물리로 굴려서 첫 충돌(공 또는 쿠션)까지의 진짜 경로를 구함: 스쿼트 + 스워브(휘어짐) 모두 반영
 let traceCache = null;
-function realTrace() { const key = [st.stroke, params.strokeFeel, st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
+function realTrace() { const key = [st.stroke, params.strokeFeel, params.swerveK, st.phi, st.power, st.a, st.b, st.elev, balls.map(b => b.x + ',' + b.y).join(';'), params.cueEndMass, params.muS].join('|');
   if (traceCache && traceCache.key === key) return traceCache;
   const b = Object.assign({}, balls[0], { q: balls[0].q.slice(), vx: 0, vy: 0, vz: 0, wx: 0, wy: 0, wz: 0 });
   BP.strike(params, b, { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke });

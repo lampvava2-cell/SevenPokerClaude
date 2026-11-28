@@ -52,6 +52,10 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.beginPath(); ctx.arc(p[0] + so, p[1] - so, R, 0, 7); ctx.fill();
     const g = ctx.createRadialGradient(p[0] - r * 0.35, p[1] + r * 0.4, r * 0.1, p[0], p[1], r); g.addColorStop(0, COLORS[k][0]); g.addColorStop(1, COLORS[k][1]);
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
+  { const el = $('settle'), on = play && play.res.settleT !== undefined && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25;
+    if (on) { const left = Math.max(0, (play.res.duration - play.t) / Math.max(0.05, play.speed)), c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
+      $('settleSec').textContent = left.toFixed(1); el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; }
+    el.hidden = !on; }
   if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); });
     if (drag && drag.k >= 0) { const b = balls[drag.k], dm = CUSH + (RAIL - CUSH) / 2; // 끄는 공에서 네 쿠션의 다이아 줄까지 기준선 + 위치 숫자
       ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 0.003; ctx.setLineDash([0.015, 0.01]); ctx.beginPath();
@@ -98,7 +102,7 @@ function drawCue() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st
 
 /* ---------- input ---------- */
 let drag = null;
-cv.addEventListener('pointerdown', e => { if (play) return; cv.setPointerCapture(e.pointerId); const p = toWorld(e);
+cv.addEventListener('pointerdown', e => { if (play) { if (play.res.settleT !== undefined && play.t > play.res.settleT) finishPlay(); return; } cv.setPointerCapture(e.pointerId); const p = toWorld(e);
   if (st.edit) { let k = -1, best = 0.14; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
   drag = { aim: true, hist: [] }; aimPoint(p); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) { aimPoint(p); drag.hist.push([performance.now(), st.phi]); if (drag.hist.length > 40) drag.hist.shift(); } else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
@@ -300,8 +304,13 @@ function shoot() { if (play || st.edit) return; audioInit();
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
   const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
   $('busy').hidden = false;
-  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.aimDia = st.aimDia; $('busy').hidden = true;
+  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.aimDia = st.aimDia; $('busy').hidden = true;
     if (last) prev = last; last = res; startPlay(res); snd('cue', shot.V); }, 20); }
+// 눈에 보이는 움직임이 끝나는 시점: 이후 모든 공이 최종 위치에서 2mm 이내
+function settleTime(res) { const f = res.frames, n = f.length - 1, fin = f[n];
+  for (let i = n; i >= 0; i--) for (let k = 0; k < 3; k++) if (Math.hypot(f[i][k * 8] - fin[k * 8], f[i][k * 8 + 1] - fin[k * 8 + 1]) > 0.002) return Math.min(res.duration, (i + 1) / params.recordHz);
+  return 0; }
+function finishPlay() { if (!play) return; play.t = play.res.duration + 1e-6; }
 function startPlay(res) { play = { res, t: 0, speed: st.rspeed, evi: 0 }; $('live').hidden = false; ui(); }
 $('shoot').onclick = shoot;
 $('replay').onclick = () => { if (!last || play) return; startPlay(last); };

@@ -221,7 +221,8 @@ const BilliardPhysics = (() => {
   ];
 
   function moving(P, b) {
-    return b.air || Math.hypot(b.vx, b.vy) > 1e-3 || Math.abs(b.wz) > 0.3 ||
+    // 제자리 좌우회전(wz)만 남은 공은 더 이상 위치가 바뀌지 않으므로 '정지'로 판정 (불필요한 대기 제거)
+    return b.air || Math.hypot(b.vx, b.vy) > 1e-3 ||
       Math.hypot(b.vx - P.R * b.wy, b.vy + P.R * b.wx) > 2e-3;
   }
 

@@ -47,13 +47,18 @@ const BilliardPhysics = (() => {
 
   function ballMu(P, v) { return P.ballMuA + P.ballMuB * Math.exp(-P.ballMuC * v); }
 
+  // 미스큐 확률: 극단 구간 시작(0.5R)부터 서서히, 한계(miscue) 근처 약 20%, 0.9R 근처 약 90%
+  function miscueProb(P, off) { const s = P.miscue - 0.12; if (off <= s) return 0; const x = Math.min(1, (off - s) / (0.92 - s)); return Math.min(0.95, 0.95 * Math.pow(x, 1.4)); }
+
   // ---------- cue strike ----------
   // shot: {phi (rad), V (cue speed m/s), a (side, +right, fraction of R), b (vertical, +top, fraction of R), elev (rad)}
   function strike(P, ball, shot) {
     const { R, m } = P, I = 0.4 * m * R * R;
     let a = shot.a || 0, b = shot.b || 0;
-    const off = Math.hypot(a, b); let miscue = false;
-    if (off > P.miscue) { miscue = true; a *= P.miscue / off; b *= P.miscue / off; }
+    // 미스큐는 확률: 당점이 바깥일수록 확률↑ (shot.roll: 0~1 난수, 없으면 미스큐 없음)
+    const off = Math.hypot(a, b), pm = miscueProb(P, off); let miscue = (shot.roll ?? 1) < pm;
+    if (miscue && off > P.miscue) { a *= P.miscue / off; b *= P.miscue / off; }
+    if (off > 0.92) { a *= 0.92 / off; b *= 0.92 / off; }
     const ce = Math.cos(shot.elev || 0), se = Math.sin(shot.elev || 0);
     const d = [ce * Math.cos(shot.phi), ce * Math.sin(shot.phi), -se];
     const rgt = [Math.sin(shot.phi), -Math.cos(shot.phi), 0];
@@ -86,7 +91,7 @@ const BilliardPhysics = (() => {
     if (ball.vz < 0) ball.vz = 0;  // 큐의 하향 성분은 슬레이트가 흡수 (점프샷은 추후)
     if (ball.vz > 0.05) ball.air = true;
     ball.still = false;
-    return { miscue, squirtDeg: sq * 180 / Math.PI };
+    return { miscue, miscueProb: pm, squirtDeg: sq * 180 / Math.PI };
   }
 
   // ---------- cloth interaction for one step ----------
@@ -266,6 +271,6 @@ const BilliardPhysics = (() => {
     return { frames, events: ev, balls: B, duration: t, strike: info, params: P };
   }
 
-  return { DEFAULTS, makeBall, simulate, strike, _int: { cloth, ballBall, cushion, land } };
+  return { DEFAULTS, makeBall, simulate, strike, miscueProb, _int: { cloth, ballBall, cushion, land } };
 })();
 if (typeof module !== 'undefined') module.exports = BilliardPhysics;

@@ -54,7 +54,8 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
   { const mc = $('miscue'), mon = !!(play && play.res.strike && play.res.strike.miscue); // 미스큐: 샷이 끝날 때까지 당구대에 크게 표시
     if (mon) { const c = new DOMPoint(L / 2, W / 2).matrixTransform(M); mc.style.left = (c.x / dpr) + 'px'; mc.style.top = (c.y / dpr) + 'px'; mc.style.fontSize = Math.max(16, Math.min(64, (rot ? W : L) * scale * 0.9 / 13)) + 'px'; }
-    mc.hidden = !mon; }
+    if (mon && !play.res.miscueMsg) play.res.miscueMsg = MISCUE_MSG[Math.floor(Math.random() * MISCUE_MSG.length)];
+    if (mon) mc.textContent = play.res.miscueMsg; mc.hidden = !mon; }
   { const el = $('settle'); let on = false;
     if (play && play.res.ballStop && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25) {
       // 세 공 모두 항상 표시. 스핀 없이 멈춰 있는 공은 0초
@@ -132,6 +133,7 @@ function placeBall(k, x, y) { const lim = R * 1.02; if (st.snap) { x = Math.roun
 function buildPos() { $('posFields').innerHTML = balls.map((b, k) => `<span>${NAMES[k]}</span><span style="display:flex;gap:4px"><input id="px${k}" inputmode="decimal" value="${dia(b.x / DL)}" aria-label="${NAMES[k]} 가로"><input id="py${k}" inputmode="decimal" value="${dia(b.y / DW)}" aria-label="${NAMES[k]} 세로"></span>`).join('');
   balls.forEach((b, k) => ['x', 'y'].forEach(ax => { $('p' + ax + k).onchange = e => { const v = parseFloat(e.target.value); if (isNaN(v)) return; const was = st.snap; st.snap = false; placeBall(k, ax === 'x' ? v * DL : b.x, ax === 'y' ? v * DW : b.y); st.snap = was; }; })); }
 
+const MISCUE_MSG = ['ㅋㅋ 틱사그리 임돠 행님 ㅋ', '삑사리 낫는데예', '먼데 삑사리 택이가', '삑솨뤼 ㅋㅋ', '삑나따 삑나써', '미스큐 하였습니다 선생님', '미스큐 데쓰네에', '삑사그리??', '뭔데 삑났나', '뭐고 삑이가 아이증말'];
 /* ---------- 범위 구분: 일상 / 최대 / 극단 ---------- */
 // 힘: 큐 속도 m/s, 당점: 중심에서 거리(반지름 비율), 두께: 1=정면
 const ZONES = { speed: [4.5, 6.5], spin: [0.40, 0.52], thin: [1 / 8, 1 / 16] };
@@ -231,8 +233,8 @@ document.querySelectorAll('#angBtns button').forEach(b => { let t1, t2; const go
   const stop = () => { clearTimeout(t1); clearInterval(t2); }; ['pointerup', 'pointerleave', 'pointercancel'].forEach(k => b.addEventListener(k, stop)); });
 function spinLabel(a, b) { const s = []; if (b > 0.02) s.push('위 ' + Math.round(b * 100)); if (b < -0.02) s.push('아래 ' + Math.round(-b * 100)); if (a > 0.02) s.push('우 ' + Math.round(a * 100)); if (a < -0.02) s.push('좌 ' + Math.round(-a * 100)); return s.join(' · ') || '중앙'; }
 function ui() { drawThick(); const zs = zone('spin', Math.hypot(st.a, st.b)), zp = zone('speed', cueSpeed(st.power));
-  const mis = Math.hypot(st.a, st.b) > params.miscue;
-  $('spinTxt').textContent = spinLabel(st.a, st.b) + (mis ? ' · 미스큐!' : zs ? ' · ' + ZN[zs] : ''); tag($('spinTxt'), zs); tag($('spinPad'), zs); $('elevTxt').textContent = st.elev + '°';
+  const pm = BP.miscueProb(params, Math.hypot(st.a, st.b));
+  $('spinTxt').textContent = spinLabel(st.a, st.b) + (pm > 0 ? ' · 미스큐 ' + Math.round(pm * 100) + '%' : zs ? ' · ' + ZN[zs] : ''); tag($('spinTxt'), zs); tag($('spinPad'), zs); $('elevTxt').textContent = st.elev + '°';
   $('powTxt').textContent = Math.round(st.power * 100) + '% · ' + cueSpeed(st.power).toFixed(2) + ' m/s' + (zp ? ' · ' + ZN[zp] : ''); tag($('powTxt'), zp);
   $('angTxt').textContent = (st.aimDia ? st.aimDia + ' · ' : '') + (((st.phi * 180 / Math.PI) % 360 + 360) % 360).toFixed(2) + '°';
   $('menu').querySelector('[data-t="info"]').disabled = !last;
@@ -309,7 +311,7 @@ function rollSound(sum) { if (!AU.ctx) return; const on = st.sound ? 1 : 0, t = 
 /* ---------- shot / playback ---------- */
 function shoot() { if (play || st.edit) return; audioInit();
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
-  const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
+  const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke, roll: Math.random() };
   $('busy').hidden = false;
   setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.ballStop = ballStops(res); res.aimDia = st.aimDia; $('busy').hidden = true;
     if (last) prev = last; last = res; startPlay(res); snd('cue', shot.V); }, 20); }

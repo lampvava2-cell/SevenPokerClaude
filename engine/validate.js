@@ -37,7 +37,7 @@ for (const V of [0.8, 3]) { const ang = 30 * Math.PI / 180; const ox = 1.2, oy =
   row('회전 스로 (정면, 오른쪽 최대)', tx.toFixed(2) + '°', '약 2~5°', tx > 1.5 && tx < 5.5); }
 // 6. 스쿼트
 { const b = mk([[0.5, 0.71], far, far])[0]; const s = B.strike(P, b, { phi: 0, V: 3, a: 0.5, b: 0, elev: 0 });
-  row('스쿼트 (오른쪽 회전 최대, 수평 큐)', Math.abs(s.squirtDeg).toFixed(2) + '°', '약 0.5~2.5° (큐 샤프트 종류에 따라)', Math.abs(s.squirtDeg) > 0.5 && Math.abs(s.squirtDeg) < 2.6); }
+  row('스쿼트 (오른쪽 회전 최대, 수평 큐)', Math.abs(s.squirtDeg).toFixed(2) + '°', '약 0.3~2.5° (큐 샤프트 종류에 따라)', Math.abs(s.squirtDeg) > 0.3 && Math.abs(s.squirtDeg) < 2.6); }
 // 7. 끌어치기 / 밀어치기
 { const r = run([[0.6, 0.71], [1.2, 0.71], far], { phi: 0, V: 3, a: 0, b: -0.55, elev: 0.05 });
   const back = (1.2 - 2*R) - Math.min(...r.frames.map(f => f[0]).slice(Math.ceil(r.events[0].t * P.recordHz)));

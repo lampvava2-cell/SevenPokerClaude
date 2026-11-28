@@ -5,5 +5,5 @@ function m(extra,a,V,stroke,d){const balls=[B.makeBall('w',0.4,0.6,P),B.makeBall
  const dx=f[i][0]-f[k][0],dy=f[i][1]-f[k][1];const ang=Math.atan2(dy,dx)*180/Math.PI;
  return `두께 ${th.toFixed(0)}% · 충돌후 수구 진행각 ${ang.toFixed(0)}°(+왼) · 0.5초 옆이동 ${(dy*100).toFixed(0)}cm · 스쿼트 ${r.strike.squirtDeg.toFixed(2)}°`;}
 for(const d of [0.6,1.2]){console.log(`\n=== 우55 끊어치기 큐6m/s 거리${d}m 정면`);
- for(const [nm,ex] of [['현재(큐끝질량5g)',{}],['큐끝질량 3g',{cueEndMass:0.003}],['큐끝질량 2g',{cueEndMass:0.002}]]) console.log(' ',nm.padEnd(14),m(ex,0.55,6,'snap',d));
+ for(const [nm,ex] of [['3g(현재)',{cueEndMass:0.003}],['2g',{cueEndMass:0.002}],['1.5g',{cueEndMass:0.0015}],['1g',{cueEndMass:0.001}]]) console.log(' ',nm.padEnd(14),m(ex,0.55,6,'snap',d));
  console.log('  (참고) 보통 스트로크 5g  ',m({},0.55,6,'normal',d));}

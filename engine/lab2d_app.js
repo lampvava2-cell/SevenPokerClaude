@@ -54,9 +54,10 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
   { const el = $('settle'); let on = false;
     if (play && play.res.ballStop && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25) {
-      const sp = Math.max(0.05, play.speed), lines = play.res.ballStop.map((t, k) => [k, (t - play.t) / sp]).filter(([, l]) => l > 0.05);
-      on = lines.length > 0; const c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
-      $('settleLines').innerHTML = lines.map(([k, l]) => `<span>${['흰색공', '주황색공', '빨간색공'][k]} 스핀 멈출 때까지 잔여시간</span><b>${l.toFixed(1)}</b><span>초</span>`).join('');
+      // 세 공 모두 항상 표시. 스핀 없이 멈춰 있는 공은 0초
+      const sp = Math.max(0.05, play.speed), lines = play.res.ballStop.map((t, k) => [k, Math.max(0, (t - play.t) / sp)]);
+      on = lines.some(([, l]) => l > 0.05); const c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
+      $('settleLines').innerHTML = lines.map(([k, l]) => `<span>${['흰색공', '주황색공', '빨간색공'][k]} 스핀 멈출때까지 잔여시간</span><b>${l.toFixed(1)}</b><span>초</span>`).join('');
       el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; el.style.fontSize = Math.max(10, Math.min(28, (rot ? W : L) * scale * 0.9 / 23)) + 'px'; }  // 한 줄(약 23글자)이 당구대 폭 안에 들어가도록
     el.hidden = !on; }
   if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); });

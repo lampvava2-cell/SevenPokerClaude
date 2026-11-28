@@ -54,7 +54,8 @@ function draw(pos) { if (!M) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0,
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); });
   { const el = $('settle'), on = play && play.res.settleT !== undefined && play.t > play.res.settleT && play.res.duration - play.res.settleT > 0.25;
     if (on) { const left = Math.max(0, (play.res.duration - play.t) / Math.max(0.05, play.speed)), c = new DOMPoint(L / 2, W / 2).matrixTransform(M);
-      $('settleSec').textContent = left.toFixed(1); el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; }
+      $('settleWhy').textContent = play.res.waitWhy; $('settleSec').textContent = left.toFixed(1) + '초';
+      el.style.left = (c.x / dpr) + 'px'; el.style.top = (c.y / dpr) + 'px'; el.style.fontSize = Math.max(14, Math.min(46, (rot ? W : L) * scale * 0.045)) + 'px'; }
     el.hidden = !on; }
   if (st.edit) { ctx.strokeStyle = 'rgba(214,165,74,.9)'; ctx.lineWidth = 0.004; balls.forEach(b => { ctx.beginPath(); ctx.arc(b.x, b.y, R + 0.015, 0, 7); ctx.stroke(); });
     if (drag && drag.k >= 0) { const b = balls[drag.k], dm = CUSH + (RAIL - CUSH) / 2; // 끄는 공에서 네 쿠션의 다이아 줄까지 기준선 + 위치 숫자
@@ -102,7 +103,7 @@ function drawCue() { const c = balls[0], dx = Math.cos(st.phi), dy = Math.sin(st
 
 /* ---------- input ---------- */
 let drag = null;
-cv.addEventListener('pointerdown', e => { if (play) { if (play.res.settleT !== undefined && play.t > play.res.settleT) finishPlay(); return; } cv.setPointerCapture(e.pointerId); const p = toWorld(e);
+cv.addEventListener('pointerdown', e => { if (play) return; cv.setPointerCapture(e.pointerId); const p = toWorld(e);
   if (st.edit) { let k = -1, best = 0.14; balls.forEach((b, i) => { const d = Math.hypot(b.x - p.x, b.y - p.y); if (d < best) { best = d; k = i; } }); drag = { k }; return; }
   drag = { aim: true, hist: [] }; aimPoint(p); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const p = toWorld(e); if (drag.aim) { aimPoint(p); drag.hist.push([performance.now(), st.phi]); if (drag.hist.length > 40) drag.hist.shift(); } else if (drag.k >= 0) placeBall(drag.k, p.x, p.y); });
@@ -304,13 +305,16 @@ function shoot() { if (play || st.edit) return; audioInit();
   before = balls.map(b => Object.assign({}, b, { q: b.q.slice() }));
   const shot = { phi: st.phi, V: cueSpeed(st.power), a: st.a, b: st.b, elev: st.elev * Math.PI / 180, stroke: st.stroke };
   $('busy').hidden = false;
-  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.aimDia = st.aimDia; $('busy').hidden = true;
+  setTimeout(() => { const t0 = performance.now(); const res = BP.simulate(params, before, shot); res.calcMs = performance.now() - t0; res.shot = shot; res.settleT = settleTime(res); res.waitWhy = waitCause(res); res.aimDia = st.aimDia; $('busy').hidden = true;
     if (last) prev = last; last = res; startPlay(res); snd('cue', shot.V); }, 20); }
 // 눈에 보이는 움직임이 끝나는 시점: 이후 모든 공이 최종 위치에서 2mm 이내
 function settleTime(res) { const f = res.frames, n = f.length - 1, fin = f[n];
   for (let i = n; i >= 0; i--) for (let k = 0; k < 3; k++) if (Math.hypot(f[i][k * 8] - fin[k * 8], f[i][k * 8 + 1] - fin[k * 8 + 1]) > 0.002) return Math.min(res.duration, (i + 1) / params.recordHz);
   return 0; }
-function finishPlay() { if (!play) return; play.t = play.res.duration + 1e-6; }
+// 대기 원인: 눈에 보이는 움직임이 끝난 뒤에도 회전(자세 변화)이 남은 공을 찾음
+function waitCause(res) { const f = res.frames, n = f.length - 1, i0 = Math.min(n, Math.round(res.settleT * params.recordHz)), who = [];
+  for (let k = 0; k < 3; k++) { const o = k * 8, q0 = f[i0], q1 = f[n]; const dot = Math.abs(q0[o + 3] * q1[o + 3] + q0[o + 4] * q1[o + 4] + q0[o + 5] * q1[o + 5] + q0[o + 6] * q1[o + 6]); if (dot < 0.9999) who.push(k); }
+  return who.length ? who.map(k => NAMES[k]).join('·') + ' 스핀 멈출 때까지' : '공이 완전히 멈출 때까지'; }
 function startPlay(res) { play = { res, t: 0, speed: st.rspeed, evi: 0 }; $('live').hidden = false; ui(); }
 $('shoot').onclick = shoot;
 $('replay').onclick = () => { if (!last || play) return; startPlay(last); };
